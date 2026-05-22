@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  database:
+    image: mysql:8.0
+    container_name: hifi_mysql_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_secure_password}
+      MYSQL_DATABASE: ${DB_NAME:-hifi_db}
+      MYSQL_USER: ${DB_USER:-hifi_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-hifi_password}
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - hifi_db_data:/var/lib/mysql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - hifi_network
+
+  phpmyadmin:
+    image: phpmyadmin:5.2
+    container_name: hifi_phpmyadmin
+    restart: always
+    environment:
+      PMA_HOST: database
+      PMA_USER: ${DB_USER:-hifi_user}
+      PMA_PASSWORD: ${DB_PASSWORD:-hifi_password}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_secure_password}
+    ports:
+      - "8080:80"
+    networks:
+      - hifi_network
+    depends_on:
+      - database
+
+networks:
+  hifi_network:
+    driver: bridge
+
+volumes:
+  hifi_db_data:
+    driver: local
