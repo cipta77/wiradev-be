@@ -1,0 +1,17 @@
+import { Router } from "express";
+import { WebMvpControlerr } from "../controllers/webMvp.controller";
+
+const router = Router();
+const controller = new WebMvpController();
+
+router.get("/test-db", controller.testDb);
+
+router.get("/onboarding", controller.getOnboarding);
+router.post("/onboarding", controller.saveOnboarding);
+
+router.get("/dashboard/summary", controller.getDashboardSummary);
+
+router.get("/readiness/skill-gap", controller.getSkillGap);
+router.get("/readiness/market-demand", controller.getMarketDemand);
+
+export default router;

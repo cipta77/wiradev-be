@@ -4,6 +4,7 @@ import { pool } from "./db/connection";
 import userRoutes from "./routes/user.routes";
 import authRoutes from "./routes/auth.routes";
 import path from "path";
+import webMvpRoutes from "./routes/webMvp.routes";
 
 dotenv.config();
 
@@ -95,6 +96,7 @@ app.get("/health", async (req: Request, res: Response): Promise<void> => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api", webMvpRoutes);
 
 app.listen(PORT, () => {
   console.log("=========================================");
