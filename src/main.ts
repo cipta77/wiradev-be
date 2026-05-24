@@ -4,6 +4,7 @@ import { pool } from "./db/connection";
 import userRoutes from "./routes/user.routes";
 import authRoutes from "./routes/auth.routes";
 import path from "path";
+import fs from "fs";
 import webMvpRoutes from "./routes/webMvp.routes";
 
 dotenv.config();
@@ -98,9 +99,61 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api", webMvpRoutes);
 
+// Serve OpenAPI Spec JSON
+app.get("/api-docs.json", (req: Request, res: Response): void => {
+  try {
+    const swaggerPath = path.join(process.cwd(), "swagger.json");
+    const rawData = fs.readFileSync(swaggerPath, "utf-8");
+    res.status(200).json(JSON.parse(rawData));
+  } catch (error: any) {
+    res.status(500).json({ message: "Failed to load API docs", error: error.message });
+  }
+});
+
+// Serve Premium Swagger UI HTML
+app.get("/docs", (req: Request, res: Response): void => {
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hi-Fi API Documentation 🚀</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+  <link rel="icon" type="image/png" href="https://unpkg.com/swagger-ui-dist@5/favicon-32x32.png" sizes="32x32" />
+  <style>
+    html { box-sizing: border-box; overflow: -margin-top-collapse; }
+    *, *:before, *:after { box-sizing: inherit; }
+    body { margin: 0; background: #fafafa; font-family: sans-serif; }
+    .swagger-ui .topbar { display: none; }
+  </style>
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js" charset="UTF-8"></script>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-standalone-preset.js" charset="UTF-8"></script>
+  <script>
+    window.onload = () => {
+      window.ui = SwaggerUIBundle({
+        url: '/api-docs.json',
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIStandalonePreset
+        ],
+        layout: "BaseLayout"
+      });
+    };
+  </script>
+</body>
+</html>`;
+  res.status(200).send(html);
+});
+
 app.listen(PORT, () => {
   console.log("=========================================");
   console.log(`🚀 Express server running on: http://localhost:${PORT}`);
   console.log(`💚 Health Check endpoint:  http://localhost:${PORT}/health`);
+  console.log(`📘 Interactive Swagger Docs: http://localhost:${PORT}/docs`);
   console.log("=========================================");
 });

@@ -1,5 +1,5 @@
 import { query } from "../db/connection";
-import { User, CreateUserDTO, OnboardingProfileDTO, OnboardingGoalDTO, AccountSettingsDTO } from "../types/user.types";
+import { User, CreateUserDTO, OnboardingProfileDTO, OnboardingGoalDTO, AccountSettingsDTO, OnboardingRoleDTO } from "../types/user.types";
 import crypto from "crypto";
 
 export class UserRepository {
@@ -113,9 +113,31 @@ export class UserRepository {
     await query(sql, [data.achievement_goal, id]);
   }
 
+  async updateRole(id: string, data: OnboardingRoleDTO): Promise<void> {
+    const sql = "UPDATE users SET target_role = ? WHERE id = ?";
+    await query(sql, [data.target_role, id]);
+  }
+
   async updateDocuments(id: string, cvUrl: string | null, transcriptUrl: string | null): Promise<void> {
-    const sql = "UPDATE users SET cv_url = ?, transcript_url = ? WHERE id = ?";
-    await query(sql, [cvUrl, transcriptUrl, id]);
+    const updates: string[] = [];
+    const params: any[] = [];
+
+    if (cvUrl !== null) {
+      updates.push("cv_url = ?");
+      params.push(cvUrl);
+    }
+    if (transcriptUrl !== null) {
+      updates.push("transcript_url = ?");
+      params.push(transcriptUrl);
+    }
+
+    if (updates.length === 0) {
+      return;
+    }
+
+    params.push(id);
+    const sql = `UPDATE users SET ${updates.join(", ")} WHERE id = ?`;
+    await query(sql, params);
   }
 
   async completeOnboardingStatus(id: string): Promise<void> {

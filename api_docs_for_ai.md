@@ -24,38 +24,43 @@
 ## 📊 Core Data Types & Schemas
 
 ### 1. User Object Schema (`User`)
+
 This represents the safe user object returned in successful API responses (with `password_hash` omitted).
+
 ```typescript
 interface User {
-  id: string;                  // UUID
-  email: string;               // Unique email address
-  username: string | null;     // Optional unique username
-  first_name: string | null;   // User's first name
-  last_name: string | null;    // User's last name
-  university: string | null;   // University name
+  id: string; // UUID
+  email: string; // Unique email address
+  username: string | null; // Optional unique username
+  first_name: string | null; // User's first name
+  last_name: string | null; // User's last name
+  university: string | null; // University name
   field_of_study: string | null; // Study major/department
   graduation_year: number | null; // Graduation year (integer)
-  avatar_url: string | null;   // Link to user profile image
+  avatar_url: string | null; // Link to user profile image
   achievement_goal: AchievementGoal | null; // Selected onboarding goal
-  cv_url: string | null;       // Link to uploaded CV file
+  target_role: string | null; // Selected target role (e.g. Frontend Developer, Backend Developer, etc.)
+  cv_url: string | null; // Link to uploaded CV file
   transcript_url: string | null; // Link to uploaded academic transcript
   onboarding_completed: boolean; // onboarding status flag
-  is_email_verified: boolean;  // Verification status
-  created_at: string;          // ISO 8601 Timestamp
-  updated_at: string;          // ISO 8601 Timestamp
+  is_email_verified: boolean; // Verification status
+  created_at: string; // ISO 8601 Timestamp
+  updated_at: string; // ISO 8601 Timestamp
 }
 ```
 
 ### 2. `AchievementGoal` Enum
+
 Used during the onboarding goal step.
+
 ```typescript
 enum AchievementGoal {
-  GET_FIRST_JOB = 'GET_FIRST_JOB',
-  SWITCH_DEVELOPER_ROLE = 'SWITCH_DEVELOPER_ROLE',
-  IMPROVE_CODING_SKILLS = 'IMPROVE_CODING_SKILLS',
-  PREPARE_INTERVIEWS = 'PREPARE_INTERVIEWS',
-  BUILD_PORTFOLIO = 'BUILD_PORTFOLIO',
-  UNDERSTAND_MARKET = 'UNDERSTAND_MARKET'
+  GET_FIRST_JOB = "GET_FIRST_JOB",
+  SWITCH_DEVELOPER_ROLE = "SWITCH_DEVELOPER_ROLE",
+  IMPROVE_CODING_SKILLS = "IMPROVE_CODING_SKILLS",
+  PREPARE_INTERVIEWS = "PREPARE_INTERVIEWS",
+  BUILD_PORTFOLIO = "BUILD_PORTFOLIO",
+  UNDERSTAND_MARKET = "UNDERSTAND_MARKET",
 }
 ```
 
@@ -64,7 +69,9 @@ enum AchievementGoal {
 ## 🔑 Authentication Endpoints (`/api/auth`)
 
 ### 1. Register Account
+
 Creates a new email-based user account and automatically returns session tokens.
+
 - **Method**: `POST`
 - **Path**: `/api/auth/register`
 - **Request Body (JSON)**:
@@ -109,13 +116,15 @@ Creates a new email-based user account and automatically returns session tokens.
     ```
 
 ### 2. Login Account
+
 Logs in an existing user using either their email or username.
+
 - **Method**: `POST`
 - **Path**: `/api/auth/login`
 - **Request Body (JSON)**:
   ```json
   {
-    "identifier": "user@example.com", 
+    "identifier": "user@example.com",
     "password": "securepassword123"
   }
   ```
@@ -132,7 +141,9 @@ Logs in an existing user using either their email or username.
   - **`400 Bad Request`**: Missing required parameters or incorrect credentials
 
 ### 3. Google OAuth Login / Register
+
 Authenticates or registers a user via a Google OAuth ID Token. Supports conditional registration.
+
 - **Method**: `POST`
 - **Path**: `/api/auth/google`
 - **Request Body (JSON)**:
@@ -155,11 +166,13 @@ Authenticates or registers a user via a Google OAuth ID Token. Supports conditio
   - **`400 Bad Request`**: Missing ID token or token validation failed
 
 ### 4. Refresh Tokens
+
 Generates a new pair of access and refresh tokens via HttpOnly refresh cookie.
+
 - **Method**: `POST`
 - **Path**: `/api/auth/refresh`
 - **Request Body (JSON)**:
-  *(None - Sent automatically via HttpOnly cookie `refresh_token`)*
+  _(None - Sent automatically via HttpOnly cookie `refresh_token`)_
 - **Responses**:
   - **`200 OK`**: Cookies refreshed successfully
     ```json
@@ -170,7 +183,9 @@ Generates a new pair of access and refresh tokens via HttpOnly refresh cookie.
   - **`401 Unauthorized`**: Token has expired or is invalid
 
 ### 5. Get Current Session Profile
+
 Retrieves the logged-in user's profile based on the `access_token` cookie (vital for page-load checks).
+
 - **Method**: `GET`
 - **Path**: `/api/auth/me`
 - **Responses**:
@@ -184,7 +199,9 @@ Retrieves the logged-in user's profile based on the `access_token` cookie (vital
   - **`401 Unauthorized`**: No active session or token invalid
 
 ### 6. Logout Account
+
 Clears secure cookies on the browser to sign the user out.
+
 - **Method**: `POST`
 - **Path**: `/api/auth/logout`
 - **Responses**:
@@ -200,7 +217,9 @@ Clears secure cookies on the browser to sign the user out.
 ## 👤 User & Onboarding Endpoints (`/api/users`)
 
 ### 1. Get User Profile
+
 Retrieves detailed profile data for a specific user ID.
+
 - **Method**: `GET`
 - **Path**: `/api/users/:id`
 - **Path Parameters**:
@@ -215,7 +234,9 @@ Retrieves detailed profile data for a specific user ID.
     ```
 
 ### 2. Update Onboarding Profile
+
 Updates the user's primary academic and profile information during the onboarding flow.
+
 - **Method**: `PATCH`
 - **Path**: `/api/users/:id/onboarding/profile`
 - **Path Parameters**:
@@ -240,18 +261,20 @@ Updates the user's primary academic and profile information during the onboardin
     ```
 
 ### 3. Update Onboarding Goal
+
 Sets the user's focus/objective from the available list of achievement goals.
+
 - **Method**: `PATCH`
 - **Path**: `/api/users/:id/onboarding/goal`
 - **Path Parameters**:
-  - `id`: `string` (UUID of the user)
+- `id`: `string` (UUID of the user)
 - **Request Body (JSON)**:
   ```json
   {
     "achievement_goal": "GET_FIRST_JOB"
   }
   ```
-  *(Note: `achievement_goal` MUST be a valid value from the `AchievementGoal` Enum).*
+  _(Note: `achievement_goal` MUST be a valid value from the `AchievementGoal` Enum)._
 - **Responses**:
   - **`200 OK`**: Goal updated successfully
     ```json
@@ -261,8 +284,33 @@ Sets the user's focus/objective from the available list of achievement goals.
     }
     ```
 
-### 4. Upload Onboarding Documents
+### 4. Update Onboarding Role
+
+Sets the user's targeted career path/role during onboarding.
+
+- **Method**: `PATCH`
+- **Path**: `/api/users/:id/onboarding/role`
+- **Path Parameters**:
+  - `id`: `string` (UUID of the user)
+- **Request Body (JSON)**:
+  ```json
+  {
+    "target_role": "Frontend Developer"
+  }
+  ```
+- **Responses**:
+  - **`200 OK`**: Role updated successfully
+    ```json
+    {
+      "message": "Role updated successfully",
+      "result": { ...User }
+    }
+    ```
+
+### 5. Upload Onboarding Documents
+
 Uploads CV and academic transcripts to the server database. Relies on `multer` file parsing.
+
 - **Method**: `PATCH`
 - **Path**: `/api/users/:id/onboarding/documents`
 - **Path Parameters**:
@@ -279,8 +327,48 @@ Uploads CV and academic transcripts to the server database. Relies on `multer` f
     }
     ```
 
-### 5. Complete Onboarding Status
+### 5.1. Upload Onboarding CV Only
+
+Uploads the CV resume file only to the server.
+
+- **Method**: `PATCH`
+- **Path**: `/api/users/:id/onboarding/cv`
+- **Path Parameters**:
+  - `id`: `string` (UUID of the user)
+- **Request Body (Multipart Form-Data)**:
+  - `cv`: `File` (Required, max 1 PDF/Doc/Image file)
+- **Responses**:
+  - **`200 OK`**: CV uploaded successfully
+    ```json
+    {
+      "message": "CV uploaded successfully",
+      "result": { ...User }
+    }
+    ```
+
+### 5.2. Upload Onboarding Transcript Only
+
+Uploads the academic transcript file only to the server.
+
+- **Method**: `PATCH`
+- **Path**: `/api/users/:id/onboarding/transcript`
+- **Path Parameters**:
+  - `id`: `string` (UUID of the user)
+- **Request Body (Multipart Form-Data)**:
+  - `transcript`: `File` (Required, max 1 PDF/Doc/Image file)
+- **Responses**:
+  - **`200 OK`**: Transcript uploaded successfully
+    ```json
+    {
+      "message": "Transcript uploaded successfully",
+      "result": { ...User }
+    }
+    ```
+
+### 6. Complete Onboarding Status
+
 Marks the onboarding phase as complete, with an optional GitHub integration step.
+
 - **Method**: `POST`
 - **Path**: `/api/users/:id/onboarding/complete`
 - **Path Parameters**:
@@ -291,7 +379,7 @@ Marks the onboarding phase as complete, with an optional GitHub integration step
     "githubId": "98765432"
   }
   ```
-  *(Note: `githubId` is completely optional).*
+  _(Note: `githubId` is completely optional)._
 - **Responses**:
   - **`200 OK`**: Onboarding marked complete
     ```json
@@ -301,8 +389,10 @@ Marks the onboarding phase as complete, with an optional GitHub integration step
     }
     ```
 
-### 6. Update Account Settings (Profile)
+### 7. Update Account Settings (Profile)
+
 Updates the user's primary account settings (First Name, Last Name, Email, and University) from the Account Settings screen.
+
 - **Method**: `PATCH`
 - **Path**: `/api/users/:id/profile`
 - **Path Parameters**:
@@ -326,8 +416,10 @@ Updates the user's primary account settings (First Name, Last Name, Email, and U
     ```
   - **`400 Bad Request`**: Missing required parameters or email already registered by another account
 
-### 7. Update Password (Security)
+### 8. Update Password (Security)
+
 Updates the user's account password. If the user has an existing password, the correct current password must be provided.
+
 - **Method**: `PUT`
 - **Path**: `/api/users/:id/password`
 - **Path Parameters**:
@@ -354,7 +446,9 @@ Updates the user's account password. If the user has an existing password, the c
 ## 🩺 System & Utility Endpoints
 
 ### 1. Root Welcome Endpoint
+
 Returns a friendly greeting, the current system timestamp, and key resource paths.
+
 - **Method**: `GET`
 - **Path**: `/`
 - **Responses**:
@@ -373,7 +467,9 @@ Returns a friendly greeting, the current system timestamp, and key resource path
     ```
 
 ### 2. Health Status
+
 Verifies the operational status of the Express server and its connection to the database.
+
 - **Method**: `GET`
 - **Path**: `/health`
 - **Responses**:
@@ -388,5 +484,76 @@ Verifies the operational status of the Express server and its connection to the 
         "database": "UP"
       },
       "error": null
+    }
+    ```
+
+### 3. Dashboard Summary
+
+Retrieves the dashboard summary for the currently authenticated user, including their role, initials, streak, and readiness score.
+
+- **Method**: `GET`
+- **Path**: `/api/dashboard/summary`
+- **Headers**: `Cookie: access_token=...`
+- **Responses**:
+  - **`200 OK`**:
+    ```json
+    {
+      "message": "Dashboard summary retrieved successfully",
+      "result": {
+        "name": "Ubay Dillah",
+        "role": "Frontend Developer",
+        "initials": "UD",
+        "streak": 3,
+        "readinessScore": 62,
+        "readinessTrend": "+8%"
+      }
+    }
+    ```
+
+### 4. Skill Gap Analysis
+
+Retrieves the list of skill gaps between the user's current abilities and the requirements of their target role.
+
+- **Method**: `GET`
+- **Path**: `/api/readiness/skill-gap`
+- **Headers**: `Cookie: access_token=...`
+- **Responses**:
+  - **`200 OK`**:
+    ```json
+    {
+      "message": "Skill gap retrieved successfully",
+      "result": [
+        {
+          "skill": "React",
+          "current": 40,
+          "required": 80,
+          "demand": "High",
+          "priority": "Critical"
+        }
+      ]
+    }
+    ```
+
+### 5. Market Demand
+
+Retrieves market demand trends for various skills.
+
+- **Method**: `GET`
+- **Path**: `/api/readiness/market-demand`
+- **Headers**: `Cookie: access_token=...`
+- **Responses**:
+  - **`200 OK`**:
+    ```json
+    {
+      "message": "Market demand retrieved successfully",
+      "result": [
+        {
+          "rank": 1,
+          "skill": "JavaScript",
+          "jobs_count": 15000,
+          "trend_score": 95,
+          "bar_width": 95
+        }
+      ]
     }
     ```

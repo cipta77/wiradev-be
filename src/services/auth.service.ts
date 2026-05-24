@@ -1,5 +1,6 @@
 import { UserRepository } from "../repositories/user.repository";
 import { AuthProviderRepository } from "../repositories/auth-provider.repository";
+import { UserService } from "./user.service";
 import { User } from "../types/user.types";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -17,6 +18,7 @@ export interface AuthResponse {
 export class AuthService {
   private userRepository = new UserRepository();
   private authProviderRepository = new AuthProviderRepository();
+  private userService = new UserService();
   
   private accessSecret = process.env.JWT_ACCESS_SECRET || "access_secret";
   private refreshSecret = process.env.JWT_REFRESH_SECRET || "refresh_secret";
@@ -136,7 +138,8 @@ export class AuthService {
   async getProfileByToken(token: string): Promise<User | null> {
     try {
       const payload = jwt.verify(token, this.accessSecret) as { sub: string };
-      return await this.userRepository.findById(payload.sub);
+      // Use userService.getUserById to include github_connected
+      return await this.userService.getUserById(payload.sub);
     } catch {
       return null;
     }

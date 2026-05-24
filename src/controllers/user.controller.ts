@@ -107,12 +107,38 @@ export class UserController {
     }
   };
 
+  updateRole = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const id = req.params.id as string;
+      const { target_role } = req.body;
+
+      if (!target_role) {
+        res.status(400).json({
+          message: "Target role is required",
+        });
+        return;
+      }
+
+      const user = await this.userService.updateRole(id, { target_role });
+      const { password_hash, ...safeUser } = user as any;
+      
+      res.status(200).json({
+        message: "Role updated successfully",
+        result: safeUser,
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        message: error.message,
+      });
+    }
+  };
+
   updateDocuments = async (req: Request, res: Response): Promise<void> => {
     try {
       const id = req.params.id as string;
       const files = req.files as { [fieldname: string]: Express.Multer.File[] };
       
-      const appUrl = process.env.APP_URL || "http://localhost:3000";
+      const appUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get("host")}`;
       
       let cvUrl = null;
       let transcriptUrl = null;
@@ -130,6 +156,64 @@ export class UserController {
       
       res.status(200).json({
         message: "Documents uploaded successfully",
+        result: safeUser,
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        message: error.message,
+      });
+    }
+  };
+
+  updateCV = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const id = req.params.id as string;
+      const file = req.file as Express.Multer.File;
+
+      if (!file) {
+        res.status(400).json({
+          message: "CV file is required",
+        });
+        return;
+      }
+
+      const appUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get("host")}`;
+      const cvUrl = `${appUrl}/uploads/${file.filename}`;
+
+      const user = await this.userService.updateDocuments(id, cvUrl, null);
+      const { password_hash, ...safeUser } = user as any;
+
+      res.status(200).json({
+        message: "CV uploaded successfully",
+        result: safeUser,
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        message: error.message,
+      });
+    }
+  };
+
+  updateTranscript = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const id = req.params.id as string;
+      const file = req.file as Express.Multer.File;
+
+      if (!file) {
+        res.status(400).json({
+          message: "Transcript file is required",
+        });
+        return;
+      }
+
+      const appUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get("host")}`;
+      const transcriptUrl = `${appUrl}/uploads/${file.filename}`;
+
+      const user = await this.userService.updateDocuments(id, null, transcriptUrl);
+      const { password_hash, ...safeUser } = user as any;
+
+      res.status(200).json({
+        message: "Transcript uploaded successfully",
         result: safeUser,
       });
     } catch (error: any) {

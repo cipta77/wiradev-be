@@ -297,65 +297,33 @@ export async function submitOnboarding(req: Request, res: Response) {
 
 export async function getDashboardSummary(req: Request, res: Response) {
   try {
-    const users = await query<RowDataPacket[]>(
-      `SELECT
-        ua.id,
-        ua.email,
-        COALESCE(CONCAT(p.first_name, ' ', p.last_name), ua.name, 'Alex Rahman') AS name,
-        p.first_name,
-        p.last_name,
-        p.field_of_study
-       FROM user_accounts ua
-       LEFT JOIN profiles p ON p.user_id = ua.id
-       ORDER BY ua.id DESC
-       LIMIT 1`
-    );
+    const authUser = (req as any).user;
+    
+    let user;
+    if (authUser) {
+      const name = [authUser.first_name, authUser.last_name].filter(Boolean).join(" ") || "Ubay Dillah";
+      user = {
+        name: name,
+        role: authUser.target_role || authUser.field_of_study || "Frontend Developer",
+      };
+    } else {
+      user = {
+        name: "Ubay Dillah",
+        role: "Frontend Developer",
+      };
+    }
 
-    const user = users[0] || {
-      id: 1,
-      name: "Alex Rahman",
-      first_name: "Alex",
-      last_name: "Rahman",
-      field_of_study: "Informatika",
-    };
-
-    const skillRows = await query<SkillRow[]>(
-      `SELECT current_score, required_score
-       FROM user_skills
-       WHERE user_id = ?
-       ORDER BY id ASC`,
-      [user.id || 1]
-    );
-
-    const fallbackSkillRows = skillRows.length > 0 ? skillRows : await query<SkillRow[]>(
-      `SELECT current_score, required_score FROM user_skills WHERE user_id = 1 ORDER BY id ASC`
-    );
-
-    const readinessScore = fallbackSkillRows.length > 0
-      ? Math.round(
-          fallbackSkillRows.reduce((total, item) => {
-            const required = Number(item.required_score || 1);
-            const current = Number(item.current_score || 0);
-            return total + Math.min(100, Math.round((current / required) * 100));
-          }, 0) / fallbackSkillRows.length
-        )
-      : 62;
+    const initials = user.name ? user.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() : "UD";
 
     res.status(200).json({
-      success: true,
-      data: {
-        user: {
-          id: user.id,
-          name: user.name || "Alex Rahman",
-          firstName: user.first_name || "Alex",
-          lastName: user.last_name || "Rahman",
-          role: user.field_of_study || "Career Seeker",
-        },
-        readiness: {
-          score: readinessScore,
-          trend: "+8%",
-        },
+      message: "Dashboard summary retrieved successfully",
+      result: {
+        name: user.name,
+        role: user.role,
+        initials: initials,
         streak: 3,
+        readinessScore: 62,
+        readinessTrend: "+8%",
       },
     });
   } catch (error: any) {
@@ -369,26 +337,34 @@ export async function getDashboardSummary(req: Request, res: Response) {
 
 export async function getSkillGap(req: Request, res: Response) {
   try {
-    const rows = await query<RowDataPacket[]>(
-      `SELECT
-        skill_name,
-        MIN(current_score) AS current_score,
-        MAX(required_score) AS required_score,
-        MAX(demand) AS demand,
-        MAX(priority) AS priority
-       FROM user_skills
-       WHERE user_id = 1
-       GROUP BY skill_name
-       ORDER BY
-        CASE MAX(priority)
-          WHEN 'Critical' THEN 1
-          WHEN 'High' THEN 2
-          ELSE 3
-        END,
-        MIN(id) ASC`
-    );
+    const mockData = [
+      {
+        skill: "React",
+        current: 40,
+        required: 80,
+        demand: "High",
+        priority: "Critical"
+      },
+      {
+        skill: "TypeScript",
+        current: 60,
+        required: 90,
+        demand: "High",
+        priority: "High"
+      },
+      {
+        skill: "Node.js",
+        current: 20,
+        required: 50,
+        demand: "Medium",
+        priority: "Medium"
+      }
+    ];
 
-    res.status(200).json({ success: true, data: rows });
+    res.status(200).json({ 
+      message: "Skill gap retrieved successfully", 
+      result: mockData 
+    });
   } catch (error: any) {
     res.status(500).json({
       success: false,
@@ -400,14 +376,34 @@ export async function getSkillGap(req: Request, res: Response) {
 
 export async function getMarketDemand(req: Request, res: Response) {
   try {
-    const rows = await query<RowDataPacket[]>(
-      `SELECT rank_order, skill_name, jobs_count, trend_score, bar_width
-       FROM market_demands
-       ORDER BY rank_order ASC, id ASC
-       LIMIT 5`
-    );
+    const mockData = [
+      {
+        rank: 1,
+        skill: "JavaScript",
+        jobs_count: 15000,
+        trend_score: 95,
+        bar_width: 95
+      },
+      {
+        rank: 2,
+        skill: "Python",
+        jobs_count: 12500,
+        trend_score: 88,
+        bar_width: 88
+      },
+      {
+        rank: 3,
+        skill: "React",
+        jobs_count: 11000,
+        trend_score: 80,
+        bar_width: 80
+      }
+    ];
 
-    res.status(200).json({ success: true, data: rows });
+    res.status(200).json({ 
+      message: "Market demand retrieved successfully", 
+      result: mockData 
+    });
   } catch (error: any) {
     res.status(500).json({
       success: false,

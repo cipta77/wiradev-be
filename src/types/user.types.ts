@@ -10,10 +10,12 @@ export interface User {
   graduation_year: number | null;
   avatar_url: string | null;
   achievement_goal: AchievementGoal | null;
+  target_role: string | null;
   cv_url: string | null;
   transcript_url: string | null;
   onboarding_completed: boolean;
   is_email_verified: boolean;
+  github_connected: boolean;
   created_at: Date;
   updated_at: Date;
 }
@@ -75,5 +77,9 @@ export interface AccountSettingsDTO {
 export interface UpdatePasswordDTO {
   current_password?: string;
   new_password?: string;
+}
+
+export interface OnboardingRoleDTO {
+  target_role: string;
 }
 

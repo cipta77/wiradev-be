@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS users (
     avatar_url TEXT,
 
     achievement_goal ENUM('GET_FIRST_JOB', 'SWITCH_DEVELOPER_ROLE', 'IMPROVE_CODING_SKILLS', 'PREPARE_INTERVIEWS', 'BUILD_PORTFOLIO', 'UNDERSTAND_MARKET'),
+    target_role VARCHAR(255),
     cv_url VARCHAR(255),
     transcript_url VARCHAR(255),
 

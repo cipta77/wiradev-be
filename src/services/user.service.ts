@@ -1,6 +1,6 @@
 import { UserRepository } from "../repositories/user.repository";
 import { AuthProviderRepository } from "../repositories/auth-provider.repository";
-import { User, CreateUserDTO, AuthProvider, OnboardingProfileDTO, OnboardingGoalDTO, AccountSettingsDTO, UpdatePasswordDTO } from "../types/user.types";
+import { User, CreateUserDTO, AuthProvider, OnboardingProfileDTO, OnboardingGoalDTO, AccountSettingsDTO, UpdatePasswordDTO, OnboardingRoleDTO } from "../types/user.types";
 import bcrypt from "bcryptjs";
 
 export class UserService {
@@ -28,7 +28,12 @@ export class UserService {
     if (!user) {
       throw new Error("User not found");
     }
-    return user;
+
+    // Inject github_connected from auth_providers table
+    const providers = await this.authProviderRepository.findByUserId(id);
+    const github_connected = providers.some((p) => p.provider === "github");
+
+    return { ...user, github_connected } as any;
   }
 
   async linkProvider(userId: string, provider: string, providerUserId: string): Promise<AuthProvider> {
@@ -67,6 +72,17 @@ export class UserService {
     }
 
     await this.userRepository.updateGoal(userId, data);
+    
+    return this.getUserById(userId);
+  }
+
+  async updateRole(userId: string, data: OnboardingRoleDTO): Promise<User> {
+    const user = await this.userRepository.findById(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    await this.userRepository.updateRole(userId, data);
     
     return this.getUserById(userId);
   }
