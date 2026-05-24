@@ -75,7 +75,7 @@ If you prefer not to use Docker, you can use XAMPP to run MySQL.
 ## 📚 API Documentation
 
 Once the server is running, you can view the interactive Swagger UI documentation at:
-👉 **[http://localhost:3000/docs](http://localhost:3000/docs)** *(assuming server runs on port 3000)*
+👉 **[http://localhost:5001/docs](http://localhost:5001/docs)** *(assuming server runs on port 5001)*
 
 ## 🛠️ Useful Commands
 

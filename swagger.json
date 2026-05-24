@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "http://localhost:6000",
+      "url": "http://localhost:5001",
       "description": "Local Development Server"
     }
   ],
@@ -1115,11 +1115,11 @@
           "university": { "type": "string", "nullable": true, "example": "Universitas Indonesia" },
           "field_of_study": { "type": "string", "nullable": true, "example": "Computer Science" },
           "graduation_year": { "type": "integer", "nullable": true, "example": 2026 },
-          "avatar_url": { "type": "string", "nullable": true, "example": "http://localhost:6000/uploads/avatar.png" },
+          "avatar_url": { "type": "string", "nullable": true, "example": "http://localhost:5001/uploads/avatar.png" },
           "achievement_goal": { "$ref": "#/components/schemas/AchievementGoal" },
           "target_role": { "type": "string", "nullable": true, "example": "Frontend Developer" },
-          "cv_url": { "type": "string", "nullable": true, "example": "http://localhost:6000/uploads/cv_12345.pdf" },
-          "transcript_url": { "type": "string", "nullable": true, "example": "http://localhost:6000/uploads/transcript_12345.pdf" },
+          "cv_url": { "type": "string", "nullable": true, "example": "http://localhost:5001/uploads/cv_12345.pdf" },
+          "transcript_url": { "type": "string", "nullable": true, "example": "http://localhost:5001/uploads/transcript_12345.pdf" },
           "onboarding_completed": { "type": "boolean", "example": false },
           "is_email_verified": { "type": "boolean", "example": false },
           "created_at": { "type": "string", "format": "date-time" },
