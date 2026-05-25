@@ -99,12 +99,12 @@ app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api", webMvpRoutes);
 
-// Serve OpenAPI Spec JSON
-app.get("/api-docs.json", (req: Request, res: Response): void => {
+// Serve OpenAPI Spec YAML
+app.get("/api-docs.yml", (req: Request, res: Response): void => {
   try {
-    const swaggerPath = path.join(process.cwd(), "swagger.json");
+    const swaggerPath = path.join(process.cwd(), "swagger.yml");
     const rawData = fs.readFileSync(swaggerPath, "utf-8");
-    res.status(200).json(JSON.parse(rawData));
+    res.status(200).type("text/yaml").send(rawData);
   } catch (error: any) {
     res.status(500).json({ message: "Failed to load API docs", error: error.message });
   }
@@ -134,7 +134,7 @@ app.get("/docs", (req: Request, res: Response): void => {
   <script>
     window.onload = () => {
       window.ui = SwaggerUIBundle({
-        url: '/api-docs.json',
+        url: '/api-docs.yml',
         dom_id: '#swagger-ui',
         deepLinking: true,
         presets: [

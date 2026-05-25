@@ -1,0 +1,1060 @@
+openapi: 3.0.0
+info:
+  title: Hi-Fi API Documentation
+  description: Comprehensive interactive API documentation for the Hi-Fi Express Backend server.
+  version: 1.0.0
+servers:
+  - url: "http://localhost:5001"
+    description: Local Development Server
+paths:
+  /:
+    get:
+      summary: Root Welcome Endpoint
+      description: Returns a friendly welcome message and server system status.
+      responses:
+        "200":
+          description: Friendly greeting and active paths
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Welcome to the Hi-Fi Express Backend API \U0001F680"
+                  status:
+                    type: string
+                    example: Healthy
+                  timestamp:
+                    type: string
+                    format: date-time
+                  endpoints:
+                    type: object
+                    properties:
+                      health:
+                        type: string
+                        example: /health
+                      auth:
+                        type: string
+                        example: /api/auth
+                      users:
+                        type: string
+                        example: /api/users
+  /health:
+    get:
+      summary: Health Status Check
+      description: Verifies the operational status of the Express server and its connection to the MySQL database.
+      responses:
+        "200":
+          description: System health summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: UP
+                  timestamp:
+                    type: string
+                    format: date-time
+                  uptime:
+                    type: number
+                    example: 124.58
+                  services:
+                    type: object
+                    properties:
+                      server:
+                        type: string
+                        example: UP
+                      database:
+                        type: string
+                        example: UP
+                  error:
+                    type: string
+                    nullable: true
+                    example: null
+        "500":
+          description: Database degraded or offline
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: DEGRADED
+                  timestamp:
+                    type: string
+                    format: date-time
+                  uptime:
+                    type: number
+                    example: 124.58
+                  services:
+                    type: object
+                    properties:
+                      server:
+                        type: string
+                        example: UP
+                      database:
+                        type: string
+                        example: DOWN
+                  error:
+                    type: string
+                    example: Failed to connect to database
+  /api/auth/register:
+    post:
+      summary: Register Account
+      description: Registers a new email-based user account and automatically returns session cookies.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  minLength: 6
+                  example: securepassword123
+      responses:
+        "201":
+          description: "Account created successfully, returns User object & sets cookies"
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: access_token=...; HttpOnly; Path=/
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Successfully registered and logged in
+                  result:
+                    type: object
+                    properties:
+                      user:
+                        $ref: "#/components/schemas/User"
+        "400":
+          description: "Invalid body parameters, or email is already registered"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Email already registered
+  /api/auth/login:
+    post:
+      summary: Login Account
+      description: Logs in an existing user using either their email or username.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - identifier
+                - password
+              properties:
+                identifier:
+                  type: string
+                  example: user@example.com
+                password:
+                  type: string
+                  example: securepassword123
+      responses:
+        "200":
+          description: "Logged in successfully, sets cookies"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Successfully logged in
+                  result:
+                    type: object
+                    properties:
+                      user:
+                        $ref: "#/components/schemas/User"
+        "401":
+          description: Incorrect password or username/email not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Incorrect password or account does not exist
+  /api/auth/google:
+    post:
+      summary: Google OAuth Login
+      description: Authenticates or registers a user via a Google OAuth ID Token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - idToken
+              properties:
+                idToken:
+                  type: string
+                  example: eyJhbGciOiJSUzI1NiIsImtpZCI6...
+                isSignUp:
+                  type: boolean
+                  example: false
+      responses:
+        "200":
+          description: Successfully authenticated with Google
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Successfully authenticated with Google
+                  result:
+                    type: object
+                    properties:
+                      user:
+                        $ref: "#/components/schemas/User"
+        "400":
+          description: Google validation error or missing ID token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: idToken is required
+  /api/auth/refresh:
+    post:
+      summary: Refresh Auth Tokens
+      description: Generates a new pair of access and refresh tokens via HttpOnly refresh cookie.
+      responses:
+        "200":
+          description: Tokens refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Tokens refreshed successfully
+        "401":
+          description: "Refresh token is expired, invalid, or missing"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Refresh token is expired or invalid
+  /api/auth/me:
+    get:
+      summary: Get Current Session Profile
+      description: Retrieves the active user's profile based on the `access_token` cookie.
+      responses:
+        "200":
+          description: Profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Profile retrieved successfully
+                  result:
+                    $ref: "#/components/schemas/User"
+        "401":
+          description: "Unauthorized, no active session"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Unauthorized
+  /api/auth/logout:
+    post:
+      summary: Logout Account
+      description: Clears all secure cookies on the browser to sign the user out.
+      responses:
+        "200":
+          description: Logged out successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Successfully logged out
+  "/api/users/{id}":
+    get:
+      summary: Get User Profile
+      description: Retrieves detailed profile data for a specific user UUID.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User UUID string
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: User profile found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Profile retrieved successfully
+                  result:
+                    $ref: "#/components/schemas/User"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: User not found
+  "/api/users/{id}/providers":
+    post:
+      summary: Link Auth Provider
+      description: Connects an auth provider (like github) to the user's account.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User UUID string
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - provider
+                - provider_user_id
+              properties:
+                provider:
+                  type: string
+                  example: github
+                provider_user_id:
+                  type: string
+                  example: "12345678"
+      responses:
+        "201":
+          description: Auth provider linked successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Auth provider linked successfully
+                  result:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                        example: 038bf2bc-223d-4c31-97b7-6aef4847e30d
+                      user_id:
+                        type: string
+                        format: uuid
+                        example: e0b5d55e-5fb2-4c28-bb7e-f637de2f06ba
+                      provider:
+                        type: string
+                        example: github
+                      provider_user_id:
+                        type: string
+                        example: "12345678"
+        "400":
+          description: Invalid input parameters or provider already linked to another account
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Auth provider already linked to another account
+  "/api/users/{id}/onboarding/profile":
+    patch:
+      summary: Update Onboarding Profile
+      description: Updates primary academic and profile information during the onboarding flow.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User UUID string
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - first_name
+                - last_name
+                - university
+                - field_of_study
+                - graduation_year
+              properties:
+                first_name:
+                  type: string
+                  example: Alex
+                last_name:
+                  type: string
+                  example: Rahman
+                university:
+                  type: string
+                  example: Universitas Indonesia
+                field_of_study:
+                  type: string
+                  example: Computer Science
+                graduation_year:
+                  type: integer
+                  example: 2026
+      responses:
+        "200":
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Profile updated successfully
+                  result:
+                    $ref: "#/components/schemas/User"
+        "400":
+          description: Missing variables or user not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "First name, last name, university, field of study, and graduation year are required"
+  "/api/users/{id}/onboarding/goal":
+    patch:
+      summary: Update Onboarding Goal
+      description: Sets the focus objective from the available list of achievement goals.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User UUID string
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - achievement_goal
+              properties:
+                achievement_goal:
+                  $ref: "#/components/schemas/AchievementGoal"
+      responses:
+        "200":
+          description: Goal updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Goal updated successfully
+                  result:
+                    $ref: "#/components/schemas/User"
+        "400":
+          description: Invalid goal or user not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Achievement goal is required
+  "/api/users/{id}/onboarding/role":
+    patch:
+      summary: Update Onboarding Role
+      description: Sets the targeted career path or developer role (e.g. Frontend Developer).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - target_role
+              properties:
+                target_role:
+                  type: string
+                  example: Frontend Developer
+      responses:
+        "200":
+          description: Role updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Role updated successfully
+                  result:
+                    $ref: "#/components/schemas/User"
+        "400":
+          description: Target role is missing or invalid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Target role is required
+  "/api/users/{id}/onboarding/documents":
+    patch:
+      summary: Upload Onboarding Documents
+      description: Uploads academic credentials and resumes (parsed via Multer file parsing).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User UUID string
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                cv:
+                  type: string
+                  format: binary
+                  description: CV File (PDF/Docs/Image)
+                transcript:
+                  type: string
+                  format: binary
+                  description: Academic transcript File (PDF/Docs/Image)
+      responses:
+        "200":
+          description: Documents uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Documents uploaded successfully
+                  result:
+                    $ref: "#/components/schemas/User"
+        "400":
+          description: Upload failed or user not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Documents upload failed
+  "/api/users/{id}/onboarding/cv":
+    patch:
+      summary: Upload CV Document
+      description: Uploads CV resume only.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User UUID string
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                cv:
+                  type: string
+                  format: binary
+                  description: CV File (PDF/Docs/Image)
+      responses:
+        "200":
+          description: CV uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: CV uploaded successfully
+                  result:
+                    $ref: "#/components/schemas/User"
+        "400":
+          description: Upload failed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: CV file is required
+  "/api/users/{id}/onboarding/transcript":
+    patch:
+      summary: Upload Academic Transcript
+      description: Uploads academic transcript only.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User UUID string
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                transcript:
+                  type: string
+                  format: binary
+                  description: Academic transcript File (PDF/Docs/Image)
+      responses:
+        "200":
+          description: Transcript uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Transcript uploaded successfully
+                  result:
+                    $ref: "#/components/schemas/User"
+        "400":
+          description: Upload failed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Transcript file is required
+  "/api/users/{id}/onboarding/complete":
+    post:
+      summary: Complete Onboarding Status
+      description: "Finalizes the onboarding, changes the status flag, and optionally links GitHub."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User UUID string
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                githubId:
+                  type: string
+                  example: "98765432"
+      responses:
+        "200":
+          description: Onboarding completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Onboarding completed successfully
+                  result:
+                    $ref: "#/components/schemas/User"
+        "400":
+          description: User not found or query error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: User not found
+  "/api/users/{id}/profile":
+    patch:
+      summary: Update Account Settings
+      description: "Updates primary profile settings (First Name, Last Name, Email, and University)."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User UUID string
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - first_name
+                - last_name
+                - email
+                - university
+              properties:
+                first_name:
+                  type: string
+                  example: Alex
+                last_name:
+                  type: string
+                  example: Rahman
+                email:
+                  type: string
+                  format: email
+                  example: alex.rahman@email.com
+                university:
+                  type: string
+                  example: Universitas Indonesia
+      responses:
+        "200":
+          description: Account settings updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Account settings updated successfully
+                  result:
+                    $ref: "#/components/schemas/User"
+        "400":
+          description: Invalid parameter inputs or email already registered by another account
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Email already registered by another account
+  "/api/users/{id}/password":
+    put:
+      summary: Update Password
+      description: Updates the user password. Current password is required if user has one.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: User UUID string
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - new_password
+              properties:
+                current_password:
+                  type: string
+                  example: oldsecurepassword123
+                new_password:
+                  type: string
+                  minLength: 6
+                  example: newsecurepassword456
+      responses:
+        "200":
+          description: Password updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Password updated successfully
+                  result:
+                    $ref: "#/components/schemas/User"
+        "400":
+          description: "Incorrect current password, or new password too short"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Incorrect current password
+  /api/dashboard/summary:
+    get:
+      summary: Get Dashboard Summary
+      description: Retrieves the dashboard summary for the currently authenticated user.
+      tags:
+        - Web MVP
+      responses:
+        "200":
+          description: Dashboard summary retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Dashboard summary retrieved successfully
+                  result:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        example: Ubay Dillah
+                      role:
+                        type: string
+                        example: Frontend Developer
+                      initials:
+                        type: string
+                        example: UD
+                      streak:
+                        type: integer
+                        example: 3
+                      readinessScore:
+                        type: integer
+                        example: 62
+                      readinessTrend:
+                        type: string
+                        example: +8%
+  /api/readiness/skill-gap:
+    get:
+      summary: Get Skill Gap Analysis
+      description: Retrieves the list of skill gaps between the user's current abilities and the requirements of their target role.
+      tags:
+        - Web MVP
+      responses:
+        "200":
+          description: Skill gap retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Skill gap retrieved successfully
+                  result:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        skill:
+                          type: string
+                          example: React
+                        current:
+                          type: integer
+                          example: 40
+                        required:
+                          type: integer
+                          example: 80
+                        demand:
+                          type: string
+                          example: High
+                        priority:
+                          type: string
+                          example: Critical
+  /api/readiness/market-demand:
+    get:
+      summary: Get Market Demand
+      description: Retrieves market demand trends for various skills.
+      tags:
+        - Web MVP
+      responses:
+        "200":
+          description: Market demand retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Market demand retrieved successfully
+                  result:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        rank:
+                          type: integer
+                          example: 1
+                        skill:
+                          type: string
+                          example: JavaScript
+                        jobs_count:
+                          type: integer
+                          example: 15000
+                        trend_score:
+                          type: integer
+                          example: 95
+                        bar_width:
+                          type: integer
+                          example: 95
+components:
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: e0b5d55e-5fb2-4c28-bb7e-f637de2f06ba
+        email:
+          type: string
+          format: email
+          example: user@example.com
+        username:
+          type: string
+          nullable: true
+          example: alex_rahman
+        first_name:
+          type: string
+          nullable: true
+          example: Alex
+        last_name:
+          type: string
+          nullable: true
+          example: Rahman
+        university:
+          type: string
+          nullable: true
+          example: Universitas Indonesia
+        field_of_study:
+          type: string
+          nullable: true
+          example: Computer Science
+        graduation_year:
+          type: integer
+          nullable: true
+          example: 2026
+        avatar_url:
+          type: string
+          nullable: true
+          example: "http://localhost:5001/uploads/avatar.png"
+        achievement_goal:
+          $ref: "#/components/schemas/AchievementGoal"
+        target_role:
+          type: string
+          nullable: true
+          example: Frontend Developer
+        cv_url:
+          type: string
+          nullable: true
+          example: "http://localhost:5001/uploads/cv_12345.pdf"
+        transcript_url:
+          type: string
+          nullable: true
+          example: "http://localhost:5001/uploads/transcript_12345.pdf"
+        onboarding_completed:
+          type: boolean
+          example: false
+        is_email_verified:
+          type: boolean
+          example: false
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    AchievementGoal:
+      type: string
+      nullable: true
+      enum:
+        - GET_FIRST_JOB
+        - SWITCH_DEVELOPER_ROLE
+        - IMPROVE_CODING_SKILLS
+        - PREPARE_INTERVIEWS
+        - BUILD_PORTFOLIO
+        - UNDERSTAND_MARKET
+      example: GET_FIRST_JOB
