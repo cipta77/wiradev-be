@@ -1,19 +1,36 @@
 openapi: 3.0.0
 info:
   title: Hi-Fi API Documentation
-  description: Comprehensive interactive API documentation for the Hi-Fi Express Backend server.
   version: 1.0.0
+  description: Comprehensive API documentation for the Hi-Fi Express backend, including authentication, onboarding, readiness dashboard, assessments, CV screening, and career simulations.
 servers:
-  - url: "http://localhost:5001"
+  - url: http://localhost:5001
     description: Local Development Server
+tags:
+  - name: System
+    description: Server-level endpoints for health and basic connectivity checks.
+  - name: Auth
+    description: Authentication and session lifecycle endpoints.
+  - name: Users
+    description: User profile and onboarding management endpoints.
+  - name: Web MVP
+    description: Web MVP onboarding and readiness endpoints mounted under `/api`.
+  - name: Assessment
+    description: Readiness assessment endpoints for categories, questions, submissions, and analytics.
+  - name: CV Screening
+    description: CV upload and ATS-style screening analysis endpoints.
+  - name: Career Simulation
+    description: Interactive recruiter and salary negotiation simulation endpoints.
 paths:
   /:
     get:
+      tags:
+        - System
       summary: Root Welcome Endpoint
-      description: Returns a friendly welcome message and server system status.
+      description: Returns a friendly welcome message and the main API entry points exposed by the backend server.
       responses:
         "200":
-          description: Friendly greeting and active paths
+          description: Friendly greeting and top-level endpoint registry.
           content:
             application/json:
               schema:
@@ -21,7 +38,7 @@ paths:
                 properties:
                   message:
                     type: string
-                    example: "Welcome to the Hi-Fi Express Backend API \U0001F680"
+                    example: Welcome to the Hi-Fi Express Backend API 🚀
                   status:
                     type: string
                     example: Healthy
@@ -40,72 +57,36 @@ paths:
                       users:
                         type: string
                         example: /api/users
+                required:
+                  - message
+                  - status
+                  - timestamp
+                  - endpoints
   /health:
     get:
+      tags:
+        - System
       summary: Health Status Check
       description: Verifies the operational status of the Express server and its connection to the MySQL database.
       responses:
         "200":
-          description: System health summary
+          description: Server and database are healthy.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: UP
-                  timestamp:
-                    type: string
-                    format: date-time
-                  uptime:
-                    type: number
-                    example: 124.58
-                  services:
-                    type: object
-                    properties:
-                      server:
-                        type: string
-                        example: UP
-                      database:
-                        type: string
-                        example: UP
-                  error:
-                    type: string
-                    nullable: true
-                    example: null
+                $ref: "#/components/schemas/HealthResponse"
         "500":
-          description: Database degraded or offline
+          description: Server is running but one or more dependent services are degraded.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: DEGRADED
-                  timestamp:
-                    type: string
-                    format: date-time
-                  uptime:
-                    type: number
-                    example: 124.58
-                  services:
-                    type: object
-                    properties:
-                      server:
-                        type: string
-                        example: UP
-                      database:
-                        type: string
-                        example: DOWN
-                  error:
-                    type: string
-                    example: Failed to connect to database
+                $ref: "#/components/schemas/HealthResponse"
   /api/auth/register:
     post:
+      tags:
+        - Auth
       summary: Register Account
-      description: Registers a new email-based user account and automatically returns session cookies.
+      description: Registers a new email-based user account and automatically establishes the authenticated session.
       requestBody:
         required: true
         content:
@@ -126,7 +107,7 @@ paths:
                   example: securepassword123
       responses:
         "201":
-          description: "Account created successfully, returns User object & sets cookies"
+          description: Account created successfully and auth cookies are set.
           headers:
             Set-Cookie:
               schema:
@@ -146,17 +127,15 @@ paths:
                       user:
                         $ref: "#/components/schemas/User"
         "400":
-          description: "Invalid body parameters, or email is already registered"
+          description: Invalid payload or email is already registered.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: Email already registered
+                $ref: "#/components/schemas/MessageResponse"
   /api/auth/login:
     post:
+      tags:
+        - Auth
       summary: Login Account
       description: Logs in an existing user using either their email or username.
       requestBody:
@@ -171,13 +150,14 @@ paths:
               properties:
                 identifier:
                   type: string
+                  description: Email or username.
                   example: user@example.com
                 password:
                   type: string
                   example: securepassword123
       responses:
         "200":
-          description: "Logged in successfully, sets cookies"
+          description: Logged in successfully and auth cookies are set.
           content:
             application/json:
               schema:
@@ -192,19 +172,17 @@ paths:
                       user:
                         $ref: "#/components/schemas/User"
         "401":
-          description: Incorrect password or username/email not found
+          description: Incorrect password or account does not exist.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: Incorrect password or account does not exist
+                $ref: "#/components/schemas/MessageResponse"
   /api/auth/google:
     post:
+      tags:
+        - Auth
       summary: Google OAuth Login
-      description: Authenticates or registers a user via a Google OAuth ID Token.
+      description: Authenticates or registers a user with a Google OAuth ID token.
       requestBody:
         required: true
         content:
@@ -222,7 +200,7 @@ paths:
                   example: false
       responses:
         "200":
-          description: Successfully authenticated with Google
+          description: Successfully authenticated with Google.
           content:
             application/json:
               schema:
@@ -237,47 +215,41 @@ paths:
                       user:
                         $ref: "#/components/schemas/User"
         "400":
-          description: Google validation error or missing ID token
+          description: Missing ID token or Google validation failed.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: idToken is required
+                $ref: "#/components/schemas/MessageResponse"
   /api/auth/refresh:
     post:
+      tags:
+        - Auth
       summary: Refresh Auth Tokens
-      description: Generates a new pair of access and refresh tokens via HttpOnly refresh cookie.
+      description: Generates a fresh access token and refresh token pair using the refresh cookie.
       responses:
         "200":
-          description: Tokens refreshed successfully
+          description: Tokens refreshed successfully.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: Tokens refreshed successfully
+                $ref: "#/components/schemas/MessageResponse"
         "401":
-          description: "Refresh token is expired, invalid, or missing"
+          description: Refresh token is missing, expired, or invalid.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: Refresh token is expired or invalid
+                $ref: "#/components/schemas/MessageResponse"
   /api/auth/me:
     get:
+      tags:
+        - Auth
       summary: Get Current Session Profile
-      description: Retrieves the active user's profile based on the `access_token` cookie.
+      description: Retrieves the currently authenticated user profile based on the active access cookie.
+      security:
+        - cookieAuth: []
       responses:
         "200":
-          description: Profile retrieved successfully
+          description: Profile retrieved successfully.
           content:
             application/json:
               schema:
@@ -289,45 +261,35 @@ paths:
                   result:
                     $ref: "#/components/schemas/User"
         "401":
-          description: "Unauthorized, no active session"
+          description: Unauthorized because no valid session is present.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: Unauthorized
+                $ref: "#/components/schemas/MessageResponse"
   /api/auth/logout:
     post:
+      tags:
+        - Auth
       summary: Logout Account
-      description: Clears all secure cookies on the browser to sign the user out.
+      description: Clears authentication cookies and signs the user out.
       responses:
         "200":
-          description: Logged out successfully
+          description: Logged out successfully.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: Successfully logged out
-  "/api/users/{id}":
+                $ref: "#/components/schemas/MessageResponse"
+  /api/users/{id}:
     get:
+      tags:
+        - Users
       summary: Get User Profile
-      description: Retrieves detailed profile data for a specific user UUID.
+      description: Retrieves detailed profile data for the specified user ID.
       parameters:
-        - name: id
-          in: path
-          required: true
-          description: User UUID string
-          schema:
-            type: string
-            format: uuid
+        - $ref: "#/components/parameters/UserIdPath"
       responses:
         "200":
-          description: User profile found
+          description: User profile found.
           content:
             application/json:
               schema:
@@ -339,27 +301,19 @@ paths:
                   result:
                     $ref: "#/components/schemas/User"
         "404":
-          description: User not found
+          description: User not found.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: User not found
-  "/api/users/{id}/providers":
+                $ref: "#/components/schemas/MessageResponse"
+  /api/users/{id}/providers:
     post:
+      tags:
+        - Users
       summary: Link Auth Provider
-      description: Connects an auth provider (like github) to the user's account.
+      description: Links an external auth provider such as GitHub to the selected user account.
       parameters:
-        - name: id
-          in: path
-          required: true
-          description: User UUID string
-          schema:
-            type: string
-            format: uuid
+        - $ref: "#/components/parameters/UserIdPath"
       requestBody:
         required: true
         content:
@@ -378,7 +332,7 @@ paths:
                   example: "12345678"
       responses:
         "201":
-          description: Auth provider linked successfully
+          description: Provider linked successfully.
           content:
             application/json:
               schema:
@@ -393,39 +347,27 @@ paths:
                       id:
                         type: string
                         format: uuid
-                        example: 038bf2bc-223d-4c31-97b7-6aef4847e30d
                       user_id:
                         type: string
                         format: uuid
-                        example: e0b5d55e-5fb2-4c28-bb7e-f637de2f06ba
                       provider:
                         type: string
-                        example: github
                       provider_user_id:
                         type: string
-                        example: "12345678"
         "400":
-          description: Invalid input parameters or provider already linked to another account
+          description: Invalid payload or provider is already linked elsewhere.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: Auth provider already linked to another account
-  "/api/users/{id}/onboarding/profile":
+                $ref: "#/components/schemas/MessageResponse"
+  /api/users/{id}/onboarding/profile:
     patch:
+      tags:
+        - Users
       summary: Update Onboarding Profile
-      description: Updates primary academic and profile information during the onboarding flow.
+      description: Updates the user's academic and personal profile during the onboarding flow.
       parameters:
-        - name: id
-          in: path
-          required: true
-          description: User UUID string
-          schema:
-            type: string
-            format: uuid
+        - $ref: "#/components/parameters/UserIdPath"
       requestBody:
         required: true
         content:
@@ -456,7 +398,7 @@ paths:
                   example: 2026
       responses:
         "200":
-          description: Profile updated successfully
+          description: Profile updated successfully.
           content:
             application/json:
               schema:
@@ -468,27 +410,19 @@ paths:
                   result:
                     $ref: "#/components/schemas/User"
         "400":
-          description: Missing variables or user not found
+          description: Missing required fields or user not found.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: "First name, last name, university, field of study, and graduation year are required"
-  "/api/users/{id}/onboarding/goal":
+                $ref: "#/components/schemas/MessageResponse"
+  /api/users/{id}/onboarding/goal:
     patch:
+      tags:
+        - Users
       summary: Update Onboarding Goal
-      description: Sets the focus objective from the available list of achievement goals.
+      description: Sets the primary achievement goal selected during onboarding.
       parameters:
-        - name: id
-          in: path
-          required: true
-          description: User UUID string
-          schema:
-            type: string
-            format: uuid
+        - $ref: "#/components/parameters/UserIdPath"
       requestBody:
         required: true
         content:
@@ -502,7 +436,7 @@ paths:
                   $ref: "#/components/schemas/AchievementGoal"
       responses:
         "200":
-          description: Goal updated successfully
+          description: Goal updated successfully.
           content:
             application/json:
               schema:
@@ -514,27 +448,19 @@ paths:
                   result:
                     $ref: "#/components/schemas/User"
         "400":
-          description: Invalid goal or user not found
+          description: Invalid goal or missing value.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: Achievement goal is required
-  "/api/users/{id}/onboarding/role":
+                $ref: "#/components/schemas/MessageResponse"
+  /api/users/{id}/onboarding/role:
     patch:
+      tags:
+        - Users
       summary: Update Onboarding Role
-      description: Sets the targeted career path or developer role (e.g. Frontend Developer).
+      description: Sets the target career role used by readiness and simulation features.
       parameters:
-        - name: id
-          in: path
-          required: true
-          description: User UUID
-          schema:
-            type: string
-            format: uuid
+        - $ref: "#/components/parameters/UserIdPath"
       requestBody:
         required: true
         content:
@@ -549,7 +475,7 @@ paths:
                   example: Frontend Developer
       responses:
         "200":
-          description: Role updated successfully
+          description: Role updated successfully.
           content:
             application/json:
               schema:
@@ -561,27 +487,19 @@ paths:
                   result:
                     $ref: "#/components/schemas/User"
         "400":
-          description: Target role is missing or invalid
+          description: Target role is missing or invalid.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: Target role is required
-  "/api/users/{id}/onboarding/documents":
+                $ref: "#/components/schemas/MessageResponse"
+  /api/users/{id}/onboarding/documents:
     patch:
+      tags:
+        - Users
       summary: Upload Onboarding Documents
-      description: Uploads academic credentials and resumes (parsed via Multer file parsing).
+      description: Uploads the user's CV and transcript during onboarding.
       parameters:
-        - name: id
-          in: path
-          required: true
-          description: User UUID string
-          schema:
-            type: string
-            format: uuid
+        - $ref: "#/components/parameters/UserIdPath"
       requestBody:
         required: true
         content:
@@ -592,14 +510,14 @@ paths:
                 cv:
                   type: string
                   format: binary
-                  description: CV File (PDF/Docs/Image)
+                  description: CV file.
                 transcript:
                   type: string
                   format: binary
-                  description: Academic transcript File (PDF/Docs/Image)
+                  description: Academic transcript file.
       responses:
         "200":
-          description: Documents uploaded successfully
+          description: Documents uploaded successfully.
           content:
             application/json:
               schema:
@@ -611,41 +529,34 @@ paths:
                   result:
                     $ref: "#/components/schemas/User"
         "400":
-          description: Upload failed or user not found
+          description: Upload failed or user not found.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: Documents upload failed
-  "/api/users/{id}/onboarding/cv":
+                $ref: "#/components/schemas/MessageResponse"
+  /api/users/{id}/onboarding/cv:
     patch:
+      tags:
+        - Users
       summary: Upload CV Document
-      description: Uploads CV resume only.
+      description: Uploads only the CV document for onboarding.
       parameters:
-        - name: id
-          in: path
-          required: true
-          description: User UUID string
-          schema:
-            type: string
-            format: uuid
+        - $ref: "#/components/parameters/UserIdPath"
       requestBody:
         required: true
         content:
           multipart/form-data:
             schema:
               type: object
+              required:
+                - cv
               properties:
                 cv:
                   type: string
                   format: binary
-                  description: CV File (PDF/Docs/Image)
       responses:
         "200":
-          description: CV uploaded successfully
+          description: CV uploaded successfully.
           content:
             application/json:
               schema:
@@ -657,41 +568,34 @@ paths:
                   result:
                     $ref: "#/components/schemas/User"
         "400":
-          description: Upload failed
+          description: CV upload failed.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: CV file is required
-  "/api/users/{id}/onboarding/transcript":
+                $ref: "#/components/schemas/MessageResponse"
+  /api/users/{id}/onboarding/transcript:
     patch:
+      tags:
+        - Users
       summary: Upload Academic Transcript
-      description: Uploads academic transcript only.
+      description: Uploads only the academic transcript for onboarding.
       parameters:
-        - name: id
-          in: path
-          required: true
-          description: User UUID string
-          schema:
-            type: string
-            format: uuid
+        - $ref: "#/components/parameters/UserIdPath"
       requestBody:
         required: true
         content:
           multipart/form-data:
             schema:
               type: object
+              required:
+                - transcript
               properties:
                 transcript:
                   type: string
                   format: binary
-                  description: Academic transcript File (PDF/Docs/Image)
       responses:
         "200":
-          description: Transcript uploaded successfully
+          description: Transcript uploaded successfully.
           content:
             application/json:
               schema:
@@ -703,27 +607,19 @@ paths:
                   result:
                     $ref: "#/components/schemas/User"
         "400":
-          description: Upload failed
+          description: Transcript upload failed.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: Transcript file is required
-  "/api/users/{id}/onboarding/complete":
+                $ref: "#/components/schemas/MessageResponse"
+  /api/users/{id}/onboarding/complete:
     post:
+      tags:
+        - Users
       summary: Complete Onboarding Status
-      description: "Finalizes the onboarding, changes the status flag, and optionally links GitHub."
+      description: Marks onboarding as completed and may optionally link a GitHub identity.
       parameters:
-        - name: id
-          in: path
-          required: true
-          description: User UUID string
-          schema:
-            type: string
-            format: uuid
+        - $ref: "#/components/parameters/UserIdPath"
       requestBody:
         required: false
         content:
@@ -736,7 +632,7 @@ paths:
                   example: "98765432"
       responses:
         "200":
-          description: Onboarding completed successfully
+          description: Onboarding completed successfully.
           content:
             application/json:
               schema:
@@ -748,27 +644,19 @@ paths:
                   result:
                     $ref: "#/components/schemas/User"
         "400":
-          description: User not found or query error
+          description: User not found or completion failed.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: User not found
-  "/api/users/{id}/profile":
+                $ref: "#/components/schemas/MessageResponse"
+  /api/users/{id}/profile:
     patch:
+      tags:
+        - Users
       summary: Update Account Settings
-      description: "Updates primary profile settings (First Name, Last Name, Email, and University)."
+      description: Updates primary account settings such as first name, last name, email, and university.
       parameters:
-        - name: id
-          in: path
-          required: true
-          description: User UUID string
-          schema:
-            type: string
-            format: uuid
+        - $ref: "#/components/parameters/UserIdPath"
       requestBody:
         required: true
         content:
@@ -796,7 +684,7 @@ paths:
                   example: Universitas Indonesia
       responses:
         "200":
-          description: Account settings updated successfully
+          description: Account settings updated successfully.
           content:
             application/json:
               schema:
@@ -808,27 +696,19 @@ paths:
                   result:
                     $ref: "#/components/schemas/User"
         "400":
-          description: Invalid parameter inputs or email already registered by another account
+          description: Invalid payload or email is already used by another account.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: Email already registered by another account
-  "/api/users/{id}/password":
+                $ref: "#/components/schemas/MessageResponse"
+  /api/users/{id}/password:
     put:
+      tags:
+        - Users
       summary: Update Password
-      description: Updates the user password. Current password is required if user has one.
+      description: Updates the user's password. The current password may be required depending on the account state.
       parameters:
-        - name: id
-          in: path
-          required: true
-          description: User UUID string
-          schema:
-            type: string
-            format: uuid
+        - $ref: "#/components/parameters/UserIdPath"
       requestBody:
         required: true
         content:
@@ -847,7 +727,7 @@ paths:
                   example: newsecurepassword456
       responses:
         "200":
-          description: Password updated successfully
+          description: Password updated successfully.
           content:
             application/json:
               schema:
@@ -859,24 +739,162 @@ paths:
                   result:
                     $ref: "#/components/schemas/User"
         "400":
-          description: "Incorrect current password, or new password too short"
+          description: Incorrect current password or invalid new password.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+  /api/test-db:
+    get:
+      tags:
+        - Web MVP
+      summary: Test Database Connection
+      description: Performs a lightweight database connectivity check against the `user_accounts` table and returns the total row count.
+      responses:
+        "200":
+          description: Database connection verified successfully.
           content:
             application/json:
               schema:
                 type: object
                 properties:
+                  success:
+                    type: boolean
+                    example: true
                   message:
                     type: string
-                    example: Incorrect current password
-  /api/dashboard/summary:
+                    example: Database connected successfully
+                  data:
+                    type: object
+                    properties:
+                      totalUsers:
+                        type: integer
+                        example: 12
+                required:
+                  - success
+                  - message
+                  - data
+        "500":
+          description: Database connection failed.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessFlagMessageResponse"
+                  - type: object
+                    properties:
+                      error:
+                        type: string
+                        example: connect ECONNREFUSED
+  /api/onboarding:
     get:
-      summary: Get Dashboard Summary
-      description: Retrieves the dashboard summary for the currently authenticated user.
       tags:
         - Web MVP
+      summary: Get Latest Onboarding Snapshot
+      description: Returns the latest onboarding data assembled from `user_accounts`, `profiles`, `user_goals`, and `user_documents`. This endpoint currently returns the most recently inserted onboarding record and does not require authentication.
       responses:
         "200":
-          description: Dashboard summary retrieved successfully
+          description: Onboarding data loaded successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    anyOf:
+                      - $ref: "#/components/schemas/OnboardingSnapshot"
+                      - type: "null"
+                        example: null
+                required:
+                  - success
+                  - data
+        "500":
+          description: Failed to load onboarding data.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessFlagMessageResponse"
+                  - type: object
+                    properties:
+                      error:
+                        type: string
+                        example: Failed to load onboarding data
+    post:
+      tags:
+        - Web MVP
+      summary: Submit Onboarding
+      description: Creates or updates a lightweight onboarding profile, saves selected goals and document metadata, and synchronizes the main `users` table when possible.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitOnboardingRequest"
+      responses:
+        "201":
+          description: Onboarding saved successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Onboarding saved successfully
+                  data:
+                    type: object
+                    properties:
+                      userId:
+                        type: integer
+                        example: 7
+                      email:
+                        type: string
+                        format: email
+                        example: alex.rahman@example.com
+                      name:
+                        type: string
+                        example: Alex Rahman
+                      goals:
+                        type: array
+                        items:
+                          type: string
+                        example:
+                          - Get my first job in tech
+                          - Build a strong portfolio
+                required:
+                  - success
+                  - message
+                  - data
+        "500":
+          description: Failed to save onboarding.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessFlagMessageResponse"
+                  - type: object
+                    properties:
+                      error:
+                        type: string
+                        example: Failed to save onboarding
+  /api/dashboard/summary:
+    get:
+      tags:
+        - Web MVP
+      summary: Get Dashboard Summary
+      description: Returns the authenticated user's headline dashboard summary, including display name, role, initials, current readiness score, and a static streak/trend snapshot.
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Dashboard summary retrieved successfully.
           content:
             application/json:
               schema:
@@ -886,35 +904,38 @@ paths:
                     type: string
                     example: Dashboard summary retrieved successfully
                   result:
-                    type: object
+                    $ref: "#/components/schemas/DashboardSummary"
+                required:
+                  - message
+                  - result
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlagMessageResponse"
+        "500":
+          description: Failed to load dashboard summary.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessFlagMessageResponse"
+                  - type: object
                     properties:
-                      name:
+                      error:
                         type: string
-                        example: Ubay Dillah
-                      role:
-                        type: string
-                        example: Frontend Developer
-                      initials:
-                        type: string
-                        example: UD
-                      streak:
-                        type: integer
-                        example: 3
-                      readinessScore:
-                        type: integer
-                        example: 62
-                      readinessTrend:
-                        type: string
-                        example: +8%
   /api/readiness/skill-gap:
     get:
-      summary: Get Skill Gap Analysis
-      description: Retrieves the list of skill gaps between the user's current abilities and the requirements of their target role.
       tags:
         - Web MVP
+      summary: Get Skill Gap Analysis
+      description: Computes current-versus-required skill scores from the latest completed assessment and classifies each category by demand and priority.
+      security:
+        - cookieAuth: []
       responses:
         "200":
-          description: Skill gap retrieved successfully
+          description: Skill gap data returned successfully. If the user has no completed assessment, the `result` array is empty.
           content:
             application/json:
               schema:
@@ -926,32 +947,38 @@ paths:
                   result:
                     type: array
                     items:
-                      type: object
-                      properties:
-                        skill:
-                          type: string
-                          example: React
-                        current:
-                          type: integer
-                          example: 40
-                        required:
-                          type: integer
-                          example: 80
-                        demand:
-                          type: string
-                          example: High
-                        priority:
-                          type: string
-                          example: Critical
+                      $ref: "#/components/schemas/SkillGapItem"
+                required:
+                  - message
+                  - result
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlagMessageResponse"
+        "500":
+          description: Failed to load skill gap data.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessFlagMessageResponse"
+                  - type: object
+                    properties:
+                      error:
+                        type: string
   /api/readiness/market-demand:
     get:
-      summary: Get Market Demand
-      description: Retrieves market demand trends for various skills.
       tags:
         - Web MVP
+      summary: Get Market Demand
+      description: Returns a role-tailored list of in-demand skills with trend scores and illustrative job counts.
+      security:
+        - cookieAuth: []
       responses:
         "200":
-          description: Market demand retrieved successfully
+          description: Market demand retrieved successfully.
           content:
             application/json:
               schema:
@@ -963,25 +990,831 @@ paths:
                   result:
                     type: array
                     items:
-                      type: object
-                      properties:
-                        rank:
-                          type: integer
-                          example: 1
-                        skill:
-                          type: string
-                          example: JavaScript
-                        jobs_count:
-                          type: integer
-                          example: 15000
-                        trend_score:
-                          type: integer
-                          example: 95
-                        bar_width:
-                          type: integer
-                          example: 95
+                      $ref: "#/components/schemas/MarketDemandItem"
+                required:
+                  - message
+                  - result
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlagMessageResponse"
+        "500":
+          description: Failed to load market demand.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessFlagMessageResponse"
+                  - type: object
+                    properties:
+                      error:
+                        type: string
+  /api/assessment/categories:
+    get:
+      tags:
+        - Assessment
+      summary: Get Assessment Categories
+      description: Returns the ordered assessment categories mapped to the authenticated user's target role. If no role mapping is found, fallback categories are returned.
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Assessment categories retrieved successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Assessment categories retrieved successfully
+                  result:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AssessmentCategory"
+                required:
+                  - success
+                  - message
+                  - result
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlagMessageResponse"
+        "500":
+          description: Failed to load assessment categories.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessFlagMessageResponse"
+                  - type: object
+                    properties:
+                      error:
+                        type: string
+  /api/assessment/questions:
+    get:
+      tags:
+        - Assessment
+      summary: Get Assessment Questions
+      description: Returns active questions grouped by category for the authenticated user's target role. The correct answers and explanations are intentionally excluded from this payload.
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Assessment questions retrieved successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Assessment questions retrieved successfully
+                  result:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AssessmentCategoryWithQuestions"
+                required:
+                  - success
+                  - message
+                  - result
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlagMessageResponse"
+        "500":
+          description: Failed to load assessment questions.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessFlagMessageResponse"
+                  - type: object
+                    properties:
+                      error:
+                        type: string
+  /api/assessment/start:
+    post:
+      tags:
+        - Assessment
+      summary: Start Assessment
+      description: Creates a new assessment session record for the authenticated user.
+      security:
+        - cookieAuth: []
+      responses:
+        "201":
+          description: Assessment started successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Assessment started successfully
+                  result:
+                    type: object
+                    properties:
+                      assessment_id:
+                        oneOf:
+                          - type: integer
+                            example: 14
+                          - type: string
+                            example: 14
+                required:
+                  - success
+                  - message
+                  - result
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlagMessageResponse"
+        "500":
+          description: Failed to start assessment.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessFlagMessageResponse"
+                  - type: object
+                    properties:
+                      error:
+                        type: string
+  /api/assessment/submit:
+    post:
+      tags:
+        - Assessment
+      summary: Submit Assessment
+      description: Creates a completed assessment from the submitted answers, calculates the score, stores answer-level correctness, and updates the user's readiness score.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitAssessmentRequest"
+      responses:
+        "200":
+          description: Assessment submitted successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Assessment submitted successfully
+                  result:
+                    $ref: "#/components/schemas/AssessmentSubmitResult"
+                required:
+                  - success
+                  - message
+                  - result
+        "400":
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlagMessageResponse"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlagMessageResponse"
+        "500":
+          description: Failed to submit assessment.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessFlagMessageResponse"
+                  - type: object
+                    properties:
+                      error:
+                        type: string
+  /api/assessment/result/{id}:
+    get:
+      tags:
+        - Assessment
+      summary: Get Assessment Result
+      description: Returns the detailed completed assessment record and the answer breakdown for a specific assessment owned by the authenticated user.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Assessment identifier.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Assessment result retrieved successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Assessment result retrieved successfully
+                  result:
+                    type: object
+                    properties:
+                      assessment:
+                        $ref: "#/components/schemas/AssessmentResultSummary"
+                      answers:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/AssessmentAnswerReview"
+                required:
+                  - success
+                  - message
+                  - result
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlagMessageResponse"
+        "404":
+          description: Assessment result not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlagMessageResponse"
+        "500":
+          description: Failed to load assessment result.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessFlagMessageResponse"
+                  - type: object
+                    properties:
+                      error:
+                        type: string
+  /api/assessment/latest:
+    get:
+      tags:
+        - Assessment
+      summary: Get Latest Assessment
+      description: Returns the latest completed assessment overview for the authenticated user, or `null` if none exists.
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Latest assessment status retrieved.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Latest assessment status retrieved
+                  result:
+                    anyOf:
+                      - $ref: "#/components/schemas/LatestAssessment"
+                      - type: "null"
+                        example: null
+                required:
+                  - success
+                  - message
+                  - result
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlagMessageResponse"
+        "500":
+          description: Failed to fetch latest assessment.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessFlagMessageResponse"
+                  - type: object
+                    properties:
+                      error:
+                        type: string
+  /api/assessment/analytics:
+    get:
+      tags:
+        - Assessment
+      summary: Get Assessment Analytics
+      description: Returns a category-by-category analytics breakdown for the user's latest completed assessment, including strengths, critical gaps, and aggregate counters.
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Assessment analytics generated successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  result:
+                    oneOf:
+                      - $ref: "#/components/schemas/AssessmentAnalyticsEmpty"
+                      - $ref: "#/components/schemas/AssessmentAnalyticsResult"
+                required:
+                  - success
+                  - result
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessFlagMessageResponse"
+        "500":
+          description: Failed to generate assessment analytics.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/SuccessFlagMessageResponse"
+                  - type: object
+                    properties:
+                      error:
+                        type: string
+  /api/cv-screening/upload:
+    post:
+      tags:
+        - CV Screening
+      summary: Upload CV for Screening
+      description: Uploads a CV file, performs ATS-style analysis, stores the generated screening report, and returns the saved report record.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - cv
+              properties:
+                cv:
+                  type: string
+                  format: binary
+                  description: CV file uploaded under the `cv` field.
+      responses:
+        "201":
+          description: CV screened and analyzed successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: CV screened and analyzed successfully
+                  result:
+                    $ref: "#/components/schemas/CvScreening"
+                required:
+                  - message
+                  - result
+        "400":
+          description: No file uploaded or the file format is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "500":
+          description: Failed to upload and analyze the CV.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+  /api/cv-screening/history:
+    get:
+      tags:
+        - CV Screening
+      summary: Get CV Screening History
+      description: Returns all CV screening reports owned by the authenticated user, ordered from newest to oldest.
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: CV screening history retrieved successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: CV screening history retrieved successfully
+                  result:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/CvScreening"
+                required:
+                  - message
+                  - result
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "500":
+          description: Failed to retrieve CV screening history.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+  /api/cv-screening/{id}:
+    get:
+      tags:
+        - CV Screening
+      summary: Get CV Screening Report By ID
+      description: Retrieves a single CV screening report owned by the authenticated user.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: CV screening report ID.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: CV screening report retrieved successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: CV screening report retrieved successfully
+                  result:
+                    $ref: "#/components/schemas/CvScreening"
+                required:
+                  - message
+                  - result
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          description: CV screening report not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "500":
+          description: Failed to retrieve CV screening report.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+    delete:
+      tags:
+        - CV Screening
+      summary: Delete CV Screening Report
+      description: Deletes a CV screening report owned by the authenticated user and attempts to remove the associated local file if present.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: CV screening report ID.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: CV screening report deleted successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          description: CV screening report not found or could not be deleted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "500":
+          description: Failed to delete CV screening report.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+  /api/simulations/start:
+    post:
+      tags:
+        - Career Simulation
+      summary: Start Career Simulation
+      description: Starts a new recruiter interview or salary negotiation simulation session and returns the created session plus the first bot message.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - recruiter
+                    - salary
+                  example: recruiter
+                company_name:
+                  type: string
+                  nullable: true
+                  example: Tokopedia
+      responses:
+        "201":
+          description: Simulation session started successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Simulation session started successfully
+                  result:
+                    type: object
+                    properties:
+                      simulation:
+                        $ref: "#/components/schemas/Simulation"
+                      firstMessage:
+                        $ref: "#/components/schemas/SimulationMessage"
+                required:
+                  - message
+                  - result
+        "400":
+          description: Invalid or missing simulation type.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "500":
+          description: Failed to start simulation session.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+  /api/simulations/{id}/message:
+    post:
+      tags:
+        - Career Simulation
+      summary: Submit Simulation Message
+      description: Sends a user message into an ongoing simulation. The response either contains the next bot message or, when the simulation is completed, the final evaluation result.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Simulation ID.
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - text
+              properties:
+                text:
+                  type: string
+                  example: I am interested in this role because I enjoy building user-focused products.
+      responses:
+        "200":
+          description: Message processed successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Message processed successfully
+                  result:
+                    oneOf:
+                      - type: object
+                        properties:
+                          botMessage:
+                            $ref: "#/components/schemas/SimulationMessage"
+                      - type: object
+                        properties:
+                          result:
+                            $ref: "#/components/schemas/SimulationResult"
+                required:
+                  - message
+                  - result
+        "400":
+          description: Message text is missing or blank.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "500":
+          description: Simulation session not found, already completed, or failed to process the message.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+  /api/simulations/{id}:
+    get:
+      tags:
+        - Career Simulation
+      summary: Get Simulation Details
+      description: Returns the simulation session, full ordered message history, and the final result when available.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Simulation ID.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Simulation details retrieved successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Simulation details retrieved successfully
+                  result:
+                    type: object
+                    properties:
+                      simulation:
+                        $ref: "#/components/schemas/Simulation"
+                      messages:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/SimulationMessage"
+                      result:
+                        anyOf:
+                          - $ref: "#/components/schemas/SimulationResult"
+                          - type: "null"
+                            example: null
+                required:
+                  - message
+                  - result
+        "401":
+          description: Unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "500":
+          description: Failed to retrieve simulation details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
 components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+      description: Session-based authentication using the `access_token` cookie.
+  parameters:
+    UserIdPath:
+      name: id
+      in: path
+      required: true
+      description: User UUID string.
+      schema:
+        type: string
+        format: uuid
   schemas:
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Unauthorized
+      required:
+        - message
+    SuccessFlagMessageResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: Unauthorized
+      required:
+        - success
+        - message
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: UP
+        timestamp:
+          type: string
+          format: date-time
+        uptime:
+          type: number
+          example: 124.58
+        services:
+          type: object
+          properties:
+            server:
+              type: string
+              example: UP
+            database:
+              type: string
+              example: UP
+          required:
+            - server
+            - database
+        error:
+          type: string
+          nullable: true
+          example: null
+      required:
+        - status
+        - timestamp
+        - uptime
+        - services
     User:
       type: object
       properties:
@@ -1020,7 +1853,7 @@ components:
         avatar_url:
           type: string
           nullable: true
-          example: "http://localhost:5001/uploads/avatar.png"
+          example: http://localhost:5001/uploads/avatar.png
         achievement_goal:
           $ref: "#/components/schemas/AchievementGoal"
         target_role:
@@ -1030,11 +1863,11 @@ components:
         cv_url:
           type: string
           nullable: true
-          example: "http://localhost:5001/uploads/cv_12345.pdf"
+          example: http://localhost:5001/uploads/cv_12345.pdf
         transcript_url:
           type: string
           nullable: true
-          example: "http://localhost:5001/uploads/transcript_12345.pdf"
+          example: http://localhost:5001/uploads/transcript_12345.pdf
         onboarding_completed:
           type: boolean
           example: false
@@ -1058,3 +1891,665 @@ components:
         - BUILD_PORTFOLIO
         - UNDERSTAND_MARKET
       example: GET_FIRST_JOB
+    GoalItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: Get my first job in tech
+      required:
+        - id
+        - name
+    UserDocument:
+      type: object
+      properties:
+        document_type:
+          type: string
+          example: cv
+        file_name:
+          type: string
+          example: cv-alex-rahman.pdf
+        file_url:
+          type: string
+          example: /uploads/cv-alex-rahman.pdf
+      required:
+        - document_type
+        - file_name
+        - file_url
+    OnboardingSnapshot:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 7
+        email:
+          type: string
+          format: email
+          example: alex.rahman@example.com
+        name:
+          type: string
+          nullable: true
+          example: Alex Rahman
+        first_name:
+          type: string
+          nullable: true
+          example: Alex
+        last_name:
+          type: string
+          nullable: true
+          example: Rahman
+        university:
+          type: string
+          nullable: true
+          example: Universitas Indonesia
+        field_of_study:
+          type: string
+          nullable: true
+          example: Informatika
+        graduation_year:
+          type: integer
+          nullable: true
+          example: 2026
+        goals:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoalItem"
+        documents:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserDocument"
+    SubmitOnboardingRequest:
+      type: object
+      description: The controller accepts both camelCase and snake_case for several fields. Swagger documents the primary camelCase contract.
+      properties:
+        firstName:
+          type: string
+          example: Alex
+        lastName:
+          type: string
+          example: Rahman
+        university:
+          type: string
+          example: Universitas Indonesia
+        fieldOfStudy:
+          type: string
+          example: Informatika
+        graduationYear:
+          oneOf:
+            - type: integer
+              example: 2026
+            - type: string
+              example: "2026"
+        email:
+          type: string
+          format: email
+          example: alex.rahman@example.com
+        goals:
+          type: array
+          items:
+            type: string
+          example:
+            - Get my first job in tech
+            - Build a strong portfolio
+        cvFileName:
+          type: string
+          example: cv-alex-rahman.pdf
+        transcriptFileName:
+          type: string
+          example: transcript-alex-rahman.pdf
+    DashboardSummary:
+      type: object
+      properties:
+        name:
+          type: string
+          example: Ubay Dillah
+        role:
+          type: string
+          example: Frontend Developer
+        initials:
+          type: string
+          example: UD
+        streak:
+          type: integer
+          example: 3
+        readinessScore:
+          type: integer
+          example: 62
+        readinessTrend:
+          type: string
+          example: +8%
+      required:
+        - name
+        - role
+        - initials
+        - streak
+        - readinessScore
+        - readinessTrend
+    SkillGapItem:
+      type: object
+      properties:
+        skill:
+          type: string
+          example: Frontend
+        current:
+          type: integer
+          example: 40
+        required:
+          type: integer
+          example: 75
+        demand:
+          type: string
+          example: High
+        priority:
+          type: string
+          example: Critical
+      required:
+        - skill
+        - current
+        - required
+        - demand
+        - priority
+    MarketDemandItem:
+      type: object
+      properties:
+        rank:
+          type: integer
+          example: 1
+        skill:
+          type: string
+          example: JavaScript / TypeScript
+        jobs_count:
+          type: integer
+          example: 18500
+        trend_score:
+          type: integer
+          example: 96
+        bar_width:
+          type: integer
+          example: 96
+      required:
+        - rank
+        - skill
+        - jobs_count
+        - trend_score
+        - bar_width
+    AssessmentCategory:
+      type: object
+      properties:
+        id:
+          type: string
+          example: frontend
+        slug:
+          type: string
+          example: frontend
+        name:
+          type: string
+          example: Frontend
+        description:
+          type: string
+          example: Measures frontend development fundamentals and practical UI knowledge.
+        icon:
+          type: string
+          example: code
+        color:
+          type: string
+          example: "#3B82F6"
+      required:
+        - id
+        - slug
+        - name
+        - description
+        - icon
+        - color
+    AssessmentQuestion:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 550e8400-e29b-41d4-a716-446655440000
+        question_type:
+          type: string
+          enum:
+            - multiple_choice
+            - yes_no
+          example: multiple_choice
+        question_text:
+          type: string
+          example: Which hook is used to manage state in React function components?
+        options:
+          type: array
+          items:
+            type: string
+          example:
+            - useMemo
+            - useState
+            - useRef
+            - useEffect
+      required:
+        - id
+        - question_type
+        - question_text
+        - options
+    AssessmentCategoryWithQuestions:
+      allOf:
+        - $ref: "#/components/schemas/AssessmentCategory"
+        - type: object
+          properties:
+            questions:
+              type: array
+              items:
+                $ref: "#/components/schemas/AssessmentQuestion"
+          required:
+            - questions
+    SubmitAssessmentRequest:
+      type: object
+      required:
+        - answers
+      properties:
+        time_taken_seconds:
+          type: integer
+          example: 480
+        answers:
+          type: array
+          items:
+            type: object
+            required:
+              - question_id
+              - user_answer
+            properties:
+              question_id:
+                type: string
+                example: 550e8400-e29b-41d4-a716-446655440000
+              user_answer:
+                type: string
+                example: useState
+    AssessmentSubmitResult:
+      type: object
+      properties:
+        assessment_id:
+          type: string
+          example: 7dca78aa-0e7c-4bcb-a79d-9f7700af4be9
+        total_questions:
+          type: integer
+          example: 15
+        correct_answers:
+          type: integer
+          example: 11
+        score_percentage:
+          type: number
+          example: 73.33
+      required:
+        - assessment_id
+        - total_questions
+        - correct_answers
+        - score_percentage
+    AssessmentResultSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 7dca78aa-0e7c-4bcb-a79d-9f7700af4be9
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        time_taken_seconds:
+          type: integer
+          example: 480
+        total_questions:
+          type: integer
+          example: 15
+        correct_answers:
+          type: integer
+          example: 11
+        score_percentage:
+          type: number
+          example: 73.33
+    AssessmentAnswerReview:
+      type: object
+      properties:
+        question_id:
+          type: string
+        user_answer:
+          type: string
+          example: useState
+        is_correct:
+          type: boolean
+          example: true
+        question_type:
+          type: string
+          enum:
+            - multiple_choice
+            - yes_no
+        correct_answer:
+          type: string
+          example: useState
+        explanation:
+          type: string
+          example: useState is the standard React hook for component state.
+    LatestAssessment:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 7dca78aa-0e7c-4bcb-a79d-9f7700af4be9
+        completed_at:
+          type: string
+          format: date-time
+        score_percentage:
+          type: number
+          example: 73.33
+      required:
+        - id
+        - completed_at
+        - score_percentage
+    AssessmentAnalyticsEmpty:
+      type: object
+      properties:
+        has_assessment:
+          type: boolean
+          enum:
+            - false
+          example: false
+      required:
+        - has_assessment
+    AssessmentCategoryAnalytics:
+      type: object
+      properties:
+        slug:
+          type: string
+          example: frontend
+        name:
+          type: string
+          example: Frontend
+        icon:
+          type: string
+          example: code
+        color:
+          type: string
+          example: "#3B82F6"
+        score:
+          type: integer
+          example: 75
+        correct:
+          type: integer
+          example: 3
+        total:
+          type: integer
+          example: 4
+        required:
+          type: integer
+          example: 75
+        gap:
+          type: integer
+          example: 0
+        status:
+          type: string
+          enum:
+            - strong
+            - moderate
+            - gap
+          example: strong
+      required:
+        - slug
+        - name
+        - icon
+        - color
+        - score
+        - correct
+        - total
+        - required
+        - gap
+        - status
+    AssessmentAnalyticsResult:
+      type: object
+      properties:
+        has_assessment:
+          type: boolean
+          enum:
+            - true
+          example: true
+        assessment_id:
+          type: string
+          example: 7dca78aa-0e7c-4bcb-a79d-9f7700af4be9
+        completed_at:
+          type: string
+          format: date-time
+        overall_score:
+          type: number
+          example: 73.33
+        total_questions:
+          type: integer
+          example: 15
+        correct_answers:
+          type: integer
+          example: 11
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssessmentCategoryAnalytics"
+        strengths_count:
+          type: integer
+          example: 2
+        critical_gaps_count:
+          type: integer
+          example: 1
+        skills_mapped:
+          type: integer
+          example: 4
+      required:
+        - has_assessment
+        - assessment_id
+        - completed_at
+        - overall_score
+        - total_questions
+        - correct_answers
+        - categories
+        - strengths_count
+        - critical_gaps_count
+        - skills_mapped
+    CvScreening:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 99419b07-9b61-4e9d-92b8-099810fd0ea6
+        user_id:
+          type: string
+          format: uuid
+          example: e0b5d55e-5fb2-4c28-bb7e-f637de2f06ba
+        file_name:
+          type: string
+          example: alex-rahman-cv.pdf
+        file_url:
+          type: string
+          example: uploads/alex-rahman-cv.pdf
+        overall_score:
+          type: integer
+          example: 74
+        contact_score:
+          type: integer
+          nullable: true
+          example: 85
+        summary_score:
+          type: integer
+          nullable: true
+          example: 70
+        skills_score:
+          type: integer
+          nullable: true
+          example: 78
+        experience_score:
+          type: integer
+          nullable: true
+          example: 68
+        projects_score:
+          type: integer
+          nullable: true
+          example: 75
+        education_score:
+          type: integer
+          nullable: true
+          example: 80
+        ats_score:
+          type: integer
+          nullable: true
+          example: 72
+        keywords_found:
+          type: array
+          nullable: true
+          items:
+            type: string
+          example:
+            - Git
+            - React
+            - JavaScript
+        keywords_missing:
+          type: array
+          nullable: true
+          items:
+            type: string
+          example:
+            - TypeScript
+            - Docker
+            - Next.js
+        ai_summary:
+          type: string
+          nullable: true
+          example: The CV shows a solid technical baseline and relevant academic grounding, but it would benefit from stronger measurable impact and better role-specific keyword coverage.
+        recommendations:
+          type: array
+          nullable: true
+          items:
+            type: string
+          example:
+            - Add quantified impact to projects and internships.
+            - Highlight role-specific tools more clearly in the skills section.
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - user_id
+        - file_name
+        - file_url
+        - overall_score
+        - created_at
+    Simulation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: c626c6cc-47be-4c11-bfaa-15cf25eaecbf
+        user_id:
+          type: string
+          format: uuid
+          example: e0b5d55e-5fb2-4c28-bb7e-f637de2f06ba
+        type:
+          type: string
+          enum:
+            - recruiter
+            - salary
+          example: recruiter
+        company_name:
+          type: string
+          nullable: true
+          example: Tokopedia
+        status:
+          type: string
+          enum:
+            - ongoing
+            - completed
+          example: ongoing
+        current_question_index:
+          type: integer
+          example: 0
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - user_id
+        - type
+        - company_name
+        - status
+        - current_question_index
+        - created_at
+    SimulationMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: d67819e5-ae1b-462a-a4be-a47c1ee132d5
+        simulation_id:
+          type: string
+          format: uuid
+          example: c626c6cc-47be-4c11-bfaa-15cf25eaecbf
+        sender:
+          type: string
+          enum:
+            - bot
+            - user
+          example: bot
+        text:
+          type: string
+          example: Welcome to your interview simulation. Can you tell me about yourself?
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - simulation_id
+        - sender
+        - text
+        - created_at
+    SimulationResult:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 7f929024-f238-4b0a-8394-fc595a26fe4f
+        simulation_id:
+          type: string
+          format: uuid
+          example: c626c6cc-47be-4c11-bfaa-15cf25eaecbf
+        is_passed:
+          type: boolean
+          example: true
+        score:
+          type: integer
+          example: 82
+        feedback:
+          type: string
+          example: |-
+            ### Review
+            Strong baseline communication with clear intent.
+            
+            ### Strengths
+            - Structured and professional responses.
+            
+            ### Weaknesses & Improvements
+            - Add more quantified impact in your examples.
+        negotiated_salary:
+          type: string
+          nullable: true
+          example: Rp 9.500.000
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - simulation_id
+        - is_passed
+        - score
+        - feedback
+        - created_at

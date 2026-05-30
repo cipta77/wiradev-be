@@ -5,7 +5,7 @@ const authService = new AuthService();
 
 export const requireAuth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const token = (req as any).cookies?.access_token;
+    const token = req.cookies?.access_token;
     if (!token) {
       res.status(401).json({ message: "Unauthorized" });
       return;
@@ -17,9 +17,10 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
       return;
     }
 
-    (req as any).user = user;
+    req.user = user;
     next();
-  } catch (error: any) {
-    res.status(401).json({ message: error.message });
+  } catch (error) {
+    const err = error as Error;
+    res.status(401).json({ message: err.message });
   }
 };
