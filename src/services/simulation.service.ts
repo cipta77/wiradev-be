@@ -92,7 +92,18 @@ You successfully negotiated an increase over the initial offer. You showed profe
 
     // 2. Dynamic prompt for initial question
     const apiKey = process.env.OPENROUTER_API_KEY;
-    const model = process.env.OPENROUTER_MODEL || "meta-llama/llama-3.3-70b-instruct:free";
+    const primaryModel = process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free";
+    const modelChain = [
+      primaryModel,
+      "openai/gpt-oss-120b:free",
+      "z-ai/glm-4.5-air:free",
+      "nvidia/nemotron-3-super-120b-a12b:free",
+      "nvidia/nemotron-nano-9b-v2:free",
+      "poolside/laguna-m.1:free",
+      "google/gemma-4-31b-it:free",
+      "deepseek/deepseek-v4-flash:free",
+      "meta-llama/llama-3.3-70b-instruct:free",
+    ].filter((m, i, arr) => arr.indexOf(m) === i);
 
     if (apiKey) {
       try {
@@ -114,29 +125,41 @@ Keep your message brief and professional (max 3 sentences).
 `;
         }
 
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "http://localhost:3000",
-            "X-Title": "Hi-Fi Readiness Simulation",
-          },
-          body: JSON.stringify({
-            model: model,
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt }
-            ]
-          }),
-          signal: AbortSignal.timeout(10000)
-        });
+        for (const model of modelChain) {
+          try {
+            const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+              method: "POST",
+              headers: {
+                "Authorization": `Bearer ${apiKey}`,
+                "Content-Type": "application/json",
+                "HTTP-Referer": "http://localhost:3000",
+                "X-Title": "Hi-Fi Readiness Simulation",
+              },
+              body: JSON.stringify({
+                model,
+                messages: [
+                  { role: "system", content: systemPrompt },
+                  { role: "user", content: userPrompt }
+                ]
+              }),
+              signal: AbortSignal.timeout(12000)
+            });
 
-        if (response.ok) {
-          const data = await response.json();
-          const content = data.choices?.[0]?.message?.content;
-          if (content) {
-            initialText = content.trim();
+            if (response.status === 429 || response.status === 404) {
+              console.warn(`[Simulation] Model ${model} returned ${response.status}, trying next...`);
+              continue;
+            }
+
+            if (response.ok) {
+              const data = await response.json();
+              const content = data.choices?.[0]?.message?.content;
+              if (content) {
+                initialText = content.trim();
+                break;
+              }
+            }
+          } catch (err) {
+            console.warn(`[Simulation] Model ${model} threw an error:`, err);
           }
         }
       } catch (err) {
@@ -195,7 +218,18 @@ Keep your message brief and professional (max 3 sentences).
     const history = await this.simulationRepository.getSimulationMessages(simulationId);
 
     const apiKey = process.env.OPENROUTER_API_KEY;
-    const model = process.env.OPENROUTER_MODEL || "meta-llama/llama-3.3-70b-instruct:free";
+    const primaryModel2 = process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free";
+    const modelChain2 = [
+      primaryModel2,
+      "openai/gpt-oss-120b:free",
+      "z-ai/glm-4.5-air:free",
+      "nvidia/nemotron-3-super-120b-a12b:free",
+      "nvidia/nemotron-nano-9b-v2:free",
+      "poolside/laguna-m.1:free",
+      "google/gemma-4-31b-it:free",
+      "deepseek/deepseek-v4-flash:free",
+      "meta-llama/llama-3.3-70b-instruct:free",
+    ].filter((m, i, arr) => arr.indexOf(m) === i);
 
     // Scenario A: Keep chatting (up to 3 questions)
     if (currentIndex < 3) {
@@ -203,43 +237,61 @@ Keep your message brief and professional (max 3 sentences).
 
       if (apiKey) {
         try {
-          console.log(`Generating question ${currentIndex + 1} acting as AI HRD...`);
-          const systemPrompt = `You are a professional HR Specialist (HRD) conducting a roleplay. Maintain character. You must respond naturally to the candidate's last answer, validate/comment briefly, and ask the NEXT relevant question.
-Total questions in this interview: 3. This is question #${currentIndex + 1}.`;
+          console.log(`[Simulation] Generating follow-up question (turn ${currentIndex + 1} of 3)...`);
+          // NOTE: Do NOT tell the AI the total question count or call it "final".
+          // Let the AI respond naturally to the conversation history.
+          const systemPrompt = `You are a professional HR Specialist (HRD) named Maya conducting a job interview roleplay. Stay in character at all times.
+Your role: Respond warmly to the candidate's last answer with a brief, genuine acknowledgement (1 sentence), then naturally ask your next interview question.
+Guidelines:
+- Do NOT mention question numbers, say "next question", or use labels like "Final question".
+- Keep each response under 5 sentences total.
+- Ask only ONE question per turn.
+- Maintain a professional yet friendly tone throughout.`;
 
           const messagesForAi = history.map((m) => ({
             role: m.sender === "bot" ? "assistant" as const : "user" as const,
             content: m.text
           }));
 
-          const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${apiKey}`,
-              "Content-Type": "application/json",
-              "HTTP-Referer": "http://localhost:3000",
-              "X-Title": "Hi-Fi Readiness Simulation",
-            },
-            body: JSON.stringify({
-              model: model,
-              messages: [
-                { role: "system", content: systemPrompt },
-                ...messagesForAi,
-                { role: "user", content: `Here is my answer. Please comment briefly and ask the next question (this is question #${currentIndex + 1}).` }
-              ]
-            }),
-            signal: AbortSignal.timeout(10000)
-          });
+          for (const model of modelChain2) {
+            try {
+              const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  "Authorization": `Bearer ${apiKey}`,
+                  "Content-Type": "application/json",
+                  "HTTP-Referer": "http://localhost:3000",
+                  "X-Title": "Hi-Fi Readiness Simulation",
+                },
+                body: JSON.stringify({
+                  model,
+                  messages: [
+                    { role: "system", content: systemPrompt },
+                    ...messagesForAi,
+                  ]
+                }),
+                signal: AbortSignal.timeout(12000)
+              });
 
-          if (response.ok) {
-            const data = await response.json();
-            const content = data.choices?.[0]?.message?.content;
-            if (content) {
-              nextQuestionText = content.trim();
+              if (response.status === 429 || response.status === 404) {
+                console.warn(`[Simulation] Model ${model} returned ${response.status}, trying next...`);
+                continue;
+              }
+
+              if (response.ok) {
+                const data = await response.json();
+                const content = data.choices?.[0]?.message?.content;
+                if (content) {
+                  nextQuestionText = content.trim();
+                  break;
+                }
+              }
+            } catch (modelErr) {
+              console.warn(`[Simulation] Model ${model} threw an error:`, modelErr);
             }
           }
         } catch (e) {
-          console.error("Failed to generate dynamic question via OpenRouter:", e);
+          console.error("[Simulation] Failed to generate dynamic question:", e);
         }
       }
 
@@ -315,33 +367,45 @@ Return ONLY valid JSON. No explanations, no markdown blocks outside JSON.
 `;
           }
 
-          const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${apiKey}`,
-              "Content-Type": "application/json",
-              "HTTP-Referer": "http://localhost:3000",
-              "X-Title": "Hi-Fi Readiness Simulation",
-            },
-            body: JSON.stringify({
-              model: model,
-              messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: evaluationPrompt }
-              ]
-            }),
-            signal: AbortSignal.timeout(15000)
-          });
+          for (const model of modelChain2) {
+            try {
+              const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  "Authorization": `Bearer ${apiKey}`,
+                  "Content-Type": "application/json",
+                  "HTTP-Referer": "http://localhost:3000",
+                  "X-Title": "Hi-Fi Readiness Simulation",
+                },
+                body: JSON.stringify({
+                  model,
+                  messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: evaluationPrompt }
+                  ]
+                }),
+                signal: AbortSignal.timeout(18000)
+              });
 
-          if (response.ok) {
-            const data = await response.json();
-            const content = data.choices?.[0]?.message?.content;
-            if (content) {
-              evalResult = this.extractJson(content);
+              if (response.status === 429 || response.status === 404) {
+                console.warn(`[Simulation] Eval model ${model} returned ${response.status}, trying next...`);
+                continue;
+              }
+
+              if (response.ok) {
+                const data = await response.json();
+                const content = data.choices?.[0]?.message?.content;
+                if (content) {
+                  evalResult = this.extractJson(content);
+                  break;
+                }
+              }
+            } catch (modelErr) {
+              console.warn(`[Simulation] Eval model ${model} threw:`, modelErr);
             }
           }
         } catch (e) {
-          console.error("Failed to generate AI evaluation report:", e);
+          console.error("[Simulation] Failed to generate AI evaluation report:", e);
         }
       }
 

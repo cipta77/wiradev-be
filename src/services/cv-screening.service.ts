@@ -93,15 +93,31 @@ export class CvScreeningService {
 
     // 2. Call OpenRouter API
     const apiKey = process.env.OPENROUTER_API_KEY;
-    const model = process.env.OPENROUTER_MODEL || "meta-llama/llama-3.3-70b-instruct:free";
+    const primaryModel = process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free";
+    const modelChain = [
+      primaryModel,
+      "openai/gpt-oss-120b:free",
+      "z-ai/glm-4.5-air:free",
+      "nvidia/nemotron-3-super-120b-a12b:free",
+      "nvidia/nemotron-nano-9b-v2:free",
+      "poolside/laguna-m.1:free",
+      "google/gemma-4-31b-it:free",
+      "openai/gpt-oss-20b:free",
+      "deepseek/deepseek-v4-flash:free",
+      "qwen/qwen3-coder:free",
+      "moonshotai/kimi-k2.6:free",
+      "poolside/laguna-xs.2:free",
+      "liquid/lfm-2.5-1.2b-instruct:free",
+      "nvidia/nemotron-3-nano-30b-a3b:free",
+      "meta-llama/llama-3.3-70b-instruct:free",
+      "meta-llama/llama-3.2-3b-instruct:free",
+      "nousresearch/hermes-3-llama-3.1-405b:free",
+    ].filter((m, i, arr) => arr.indexOf(m) === i);
 
     if (apiKey) {
-      try {
-        console.log(`Analyzing CV using OpenRouter model ${model} for ${name}...`);
-        
-        const systemPrompt = `You are an expert HR Specialist and professional ATS (Applicant Tracking System) CV screening assistant. Your task is to analyze the candidate's credentials and target role, then generate a highly professional and realistic screening assessment.`;
-        
-        const userPrompt = `
+      const systemPrompt = `You are an expert HR Specialist and professional ATS (Applicant Tracking System) CV screening assistant. Your task is to analyze the candidate's credentials and target role, then generate a highly professional and realistic screening assessment.`;
+
+      const userPrompt = `
 Generate a highly customized, realistic ATS screening analysis for:
 Candidate Name: ${name}
 Target Role: ${targetRole}
@@ -128,39 +144,52 @@ The JSON object MUST contain exactly these fields:
 IMPORTANT: Output ONLY the valid JSON object. Do not include any explanations, introduction, markdown blocks, or other text outside the JSON.
 `;
 
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "http://localhost:3000",
-            "X-Title": "Hi-Fi Readiness Dashboard",
-          },
-          body: JSON.stringify({
-            model: model,
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt }
-            ]
-          }),
-          signal: AbortSignal.timeout(15000) // 15s timeout
-        });
+      for (const model of modelChain) {
+        try {
+          console.log(`[CvScreening] Trying model: ${model} for ${name}...`);
 
-        if (response.ok) {
+          const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+              "HTTP-Referer": "http://localhost:3000",
+              "X-Title": "Hi-Fi Readiness Dashboard",
+            },
+            body: JSON.stringify({
+              model,
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt }
+              ]
+            }),
+            signal: AbortSignal.timeout(20000)
+          });
+
+          if (response.status === 429 || response.status === 404) {
+            const errText = await response.text();
+            console.warn(`[CvScreening] Model ${model} returned ${response.status}, skipping. (${errText.substring(0, 100)})`);
+            continue;
+          }
+
+          if (!response.ok) {
+            console.error(`[CvScreening] Model ${model} error ${response.status}: ${response.statusText}`);
+            continue;
+          }
+
           const data = await response.json();
           const content = data.choices?.[0]?.message?.content;
           if (content) {
             analysisResult = this.extractJson(content);
-            console.log("Successfully retrieved AI analysis from OpenRouter");
+            console.log(`[CvScreening] ✅ Success with model: ${model}`);
+            break;
           }
-        } else {
-          console.error(`OpenRouter API error: ${response.status} ${response.statusText}`);
+        } catch (error) {
+          console.warn(`[CvScreening] Model ${model} threw an error:`, error);
         }
-      } catch (error) {
-        console.error("Failed to perform real OpenRouter AI screening analysis:", error);
       }
     } else {
-      console.warn("OPENROUTER_API_KEY is not defined. Using fallbacks.");
+      console.warn("[CvScreening] OPENROUTER_API_KEY is not defined. Using fallback.");
     }
 
     // 3. Fallback if AI call failed or key is missing

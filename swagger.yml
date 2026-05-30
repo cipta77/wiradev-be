@@ -2,7 +2,7 @@ openapi: 3.0.0
 info:
   title: Hi-Fi API Documentation
   version: 1.0.0
-  description: Comprehensive API documentation for the Hi-Fi Express backend, including authentication, onboarding, readiness dashboard, assessments, CV screening, and career simulations.
+  description: Comprehensive API documentation for the Hi-Fi Express backend, including authentication, onboarding, readiness dashboard, assessments, CV screening, career simulations, and AI-powered jobdesk analysis.
 servers:
   - url: http://localhost:5001
     description: Local Development Server
@@ -21,6 +21,8 @@ tags:
     description: CV upload and ATS-style screening analysis endpoints.
   - name: Career Simulation
     description: Interactive recruiter and salary negotiation simulation endpoints.
+  - name: Jobdesk Analyzer
+    description: AI-powered job description analysis that matches a candidate's profile against a job listing and returns a match score, skill gaps, and actionable recommendations. Results are never persisted to the database.
 paths:
   /:
     get:
@@ -1745,6 +1747,68 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+  /api/jobdesk/analyze:
+    post:
+      tags:
+        - Jobdesk Analyzer
+      summary: Analyze Job Description
+      description: |
+        Submits a raw job description text to be analyzed against the authenticated user's profile (target role, field of study). An AI model (via OpenRouter) performs the matching and returns a structured result.
+
+        **Note:** Results are computed on-the-fly and are **not** stored in the database.
+
+        The service uses a model fallback chain — if the primary model is rate-limited, it automatically retries with the next available free model.
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - job_description
+              properties:
+                job_description:
+                  type: string
+                  minLength: 10
+                  description: The full text of the job description to analyze.
+                  example: |
+                    We are looking for a Frontend Developer with 2+ years of experience in React, TypeScript, and REST APIs. Familiarity with Docker and CI/CD pipelines is a plus.
+      responses:
+        "200":
+          description: Job description analyzed successfully. Returns a match score, matched skills, missing skills, actionable recommendations, and a summary.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Job description analyzed successfully
+                  result:
+                    $ref: "#/components/schemas/JobdeskAnalysisResult"
+                required:
+                  - message
+                  - result
+        "400":
+          description: Job description is missing or is an empty string.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "401":
+          description: Unauthorized — valid session cookie required.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "500":
+          description: Internal server error during analysis.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
 components:
   securitySchemes:
     cookieAuth:
@@ -1762,6 +1826,54 @@ components:
         type: string
         format: uuid
   schemas:
+    JobdeskAnalysisResult:
+      type: object
+      description: The AI-generated analysis result matching a candidate's profile to a job description.
+      required:
+        - match_score
+        - matching_skills
+        - missing_skills
+        - recommendations
+        - summary
+      properties:
+        match_score:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: An integer score from 0 to 100 representing how well the candidate's profile matches the job description.
+          example: 78
+        matching_skills:
+          type: array
+          description: Skills the candidate likely already possesses that are relevant to the job.
+          items:
+            type: string
+          example:
+            - React
+            - TypeScript
+            - REST API
+            - Git
+        missing_skills:
+          type: array
+          description: Skills required by the job that the candidate appears to be missing.
+          items:
+            type: string
+          example:
+            - Docker
+            - AWS
+            - CI/CD
+        recommendations:
+          type: array
+          description: A list of 3 actionable steps to improve the candidate's chances for this job.
+          items:
+            type: string
+          example:
+            - Complete a Docker containerization tutorial and apply it to a personal project.
+            - Earn an AWS Cloud Practitioner certification to strengthen your cloud credentials.
+            - Set up a basic CI/CD pipeline using GitHub Actions on one of your existing projects.
+        summary:
+          type: string
+          description: A professional 2–3 sentence summary of the overall match analysis.
+          example: Your profile as a Frontend Developer with a background in Computer Science aligns well with the core requirements of this role. While your React and TypeScript skills are strong, you would benefit from gaining hands-on experience with DevOps tools like Docker and AWS.
     MessageResponse:
       type: object
       properties:

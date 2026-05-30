@@ -20,10 +20,12 @@ import { CvScreeningController } from "../controllers/cv-screening.controller";
 import { SimulationController } from "../controllers/simulation.controller";
 import { requireAuth } from "../middlewares/auth.middleware";
 import { upload } from "../middlewares/upload.middleware";
+import { JobdeskAnalyzerController } from "../controllers/jobdesk-analyzer.controller";
 
 const router = Router();
 const cvScreeningController = new CvScreeningController();
 const simulationController = new SimulationController();
+const jobdeskAnalyzerController = new JobdeskAnalyzerController();
 
 router.get("/test-db", testDb);
 router.get("/onboarding", getOnboarding);
@@ -72,5 +74,12 @@ router.post(
   simulationController.submitMessage,
 );
 router.get("/simulations/:id", requireAuth, simulationController.getDetails);
+
+// Jobdesk Analyzer routes
+router.post(
+  "/jobdesk/analyze",
+  requireAuth,
+  jobdeskAnalyzerController.analyze,
+);
 
 export default router;
