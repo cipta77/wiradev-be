@@ -23,6 +23,8 @@ tags:
     description: Interactive recruiter and salary negotiation simulation endpoints.
   - name: Jobdesk Analyzer
     description: AI-powered job description analysis that matches a candidate's profile against a job listing and returns a match score, skill gaps, and actionable recommendations. Results are never persisted to the database.
+  - name: Mini Project
+    description: Role-tailored projects that let users build, submit, and receive AI-powered code reviews.
 paths:
   /:
     get:
@@ -1809,6 +1811,162 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MessageResponse"
+  /api/mini-projects:
+    get:
+      tags:
+        - Mini Project
+      summary: Get Role-Tailored Mini Projects
+      description: Retrieves a list of active mini-projects mapped to the authenticated user's target career role, including the user's completion/submission status for each.
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: Mini projects retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MiniProjectsListResponse"
+        "401":
+          description: Unauthorized — valid session cookie required.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "500":
+          description: Failed to retrieve mini projects.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+  /api/mini-projects/{id}:
+    get:
+      tags:
+        - Mini Project
+      summary: Get Mini Project Details
+      description: Retrieves details of a specific mini project and the user's submission/review history for it.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Mini project identifier.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Mini project details retrieved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MiniProjectDetailResponse"
+        "401":
+          description: Unauthorized — valid session cookie required.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "404":
+          description: Mini project not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "500":
+          description: Failed to retrieve mini project details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+  /api/mini-projects/{id}/start:
+    post:
+      tags:
+        - Mini Project
+      summary: Start Mini Project
+      description: Initiates a mini-project for the user, changing their status to `in_progress`.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Mini project identifier.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Mini project started successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MiniProjectStartResponse"
+        "401":
+          description: Unauthorized — valid session cookie required.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "500":
+          description: Failed to start mini project.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+  /api/mini-projects/{id}/submit:
+    post:
+      tags:
+        - Mini Project
+      summary: Submit and Review Mini Project
+      description: Submits a project solution for evaluation. Accepts either a file upload (zip/rar) OR a public GitHub repository URL. The system automatically triggers an AI-powered code review and grades the submission against the evaluation criteria.
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Mini project identifier.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: ZIP or RAR archive containing the project files. Required if `github_url` is not provided.
+                github_url:
+                  type: string
+                  description: The public GitHub repository URL. Required if `file` is not provided.
+                  example: https://github.com/username/repository
+      responses:
+        "200":
+          description: Mini project submitted and reviewed successfully by AI.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MiniProjectSubmitResponse"
+        "400":
+          description: No file uploaded or GitHub URL provided.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "401":
+          description: Unauthorized — valid session cookie required.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "500":
+          description: Failed to submit and review mini project.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
 components:
   securitySchemes:
     cookieAuth:
@@ -2665,3 +2823,241 @@ components:
         - score
         - feedback
         - created_at
+    MiniProjectWithSubmission:
+      type: object
+      properties:
+        id:
+          type: string
+          example: 7dca78aa-0e7c-4bcb-a79d-9f7700af4be9
+        title:
+          type: string
+          example: Build a Responsive Landing Page
+        description:
+          type: string
+          example: Create a modern landing page using semantic HTML5 elements and CSS Flexbox/Grid.
+        brief:
+          type: string
+          example: |
+            ## Project Brief
+            Build a responsive landing page for a SaaS product...
+        level:
+          type: string
+          enum:
+            - Beginner
+            - Intermediate
+            - Advanced
+          example: Beginner
+        duration:
+          type: string
+          nullable: true
+          example: 2-3 hours
+        tag:
+          type: string
+          nullable: true
+          example: HTML & CSS
+        related_skills:
+          type: array
+          items:
+            type: string
+          example:
+            - HTML5
+            - CSS3
+            - Responsive Design
+        evaluation_criteria:
+          type: array
+          items:
+            type: string
+          example:
+            - Semantic elements usage
+            - CSS Flexbox/Grid layouts
+            - Mobile responsive breakpoint
+        sort_order:
+          type: integer
+          example: 1
+        is_active:
+          type: boolean
+          example: true
+        created_at:
+          type: string
+          format: date-time
+        submission_status:
+          type: string
+          enum:
+            - not_started
+            - in_progress
+            - submitted
+            - reviewed
+          example: in_progress
+        submission_id:
+          type: string
+          format: uuid
+          nullable: true
+          example: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+        overall_score:
+          type: integer
+          nullable: true
+          example: 85
+        submitted_at:
+          type: string
+          format: date-time
+          nullable: true
+        reviewed_at:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        - id
+        - title
+        - description
+        - brief
+        - level
+        - sort_order
+        - is_active
+        - submission_status
+    UserMiniProjectSubmission:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+        user_id:
+          type: string
+          format: uuid
+          example: e0b5d55e-5fb2-4c28-bb7e-f637de2f06ba
+        mini_project_id:
+          type: string
+          example: 7dca78aa-0e7c-4bcb-a79d-9f7700af4be9
+        status:
+          type: string
+          enum:
+            - not_started
+            - in_progress
+            - submitted
+            - reviewed
+          example: reviewed
+        file_name:
+          type: string
+          nullable: true
+          example: github:owner/repo
+        file_url:
+          type: string
+          nullable: true
+          example: https://github.com/owner/repo
+        file_type:
+          type: string
+          nullable: true
+          example: github
+        overall_score:
+          type: integer
+          nullable: true
+          example: 85
+        strengths:
+          type: array
+          items:
+            type: string
+          example:
+            - Menunjukkan pemahaman dasar yang baik tentang skenario proyek.
+            - Struktur file dan pengorganisasian kode/dokumen tampak terstruktur dengan rapi.
+        improvements:
+          type: array
+          items:
+            type: string
+          example:
+            - Dapat meningkatkan validasi input atau error handling agar aplikasi lebih tangguh.
+            - Tambahkan dokumentasi atau komentar pendukung agar kode lebih mudah dipahami.
+        objectives_met:
+          type: array
+          items:
+            type: object
+            required:
+              - title
+              - status
+            properties:
+              title:
+                type: string
+                example: Kesesuaian dengan brief proyek
+              status:
+                type: string
+                enum:
+                  - success
+                  - warning
+                example: success
+        ai_summary:
+          type: string
+          nullable: true
+          example: Proyek telah disubmit dengan baik. Pengiriman file menunjukkan kesiapan teknis dasar yang sesuai.
+        submitted_at:
+          type: string
+          format: date-time
+          nullable: true
+        reviewed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - user_id
+        - mini_project_id
+        - status
+        - created_at
+    MiniProjectsListResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Mini projects retrieved successfully
+        result:
+          type: array
+          items:
+            $ref: "#/components/schemas/MiniProjectWithSubmission"
+      required:
+        - message
+        - result
+    MiniProjectDetailResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Mini project detail retrieved successfully
+        result:
+          type: object
+          properties:
+            project:
+              $ref: "#/components/schemas/MiniProjectWithSubmission"
+            submission:
+              anyOf:
+                - $ref: "#/components/schemas/UserMiniProjectSubmission"
+                - type: "null"
+                  example: null
+          required:
+            - project
+            - submission
+      required:
+        - message
+        - result
+    MiniProjectStartResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Mini project started successfully
+        result:
+          $ref: "#/components/schemas/UserMiniProjectSubmission"
+      required:
+        - message
+        - result
+    MiniProjectSubmitResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Mini project submitted and reviewed successfully by AI
+        result:
+          $ref: "#/components/schemas/UserMiniProjectSubmission"
+      required:
+        - message
+        - result
