@@ -296,7 +296,7 @@ INSERT IGNORE INTO assessment_questions (id, category_id, question_type, questio
 ('q-sc-4', 'cat-sc', 'yes_no', 'Do you strictly enforce input sanitization and context-aware output encoding to prevent Cross-Site Scripting (XSS) and Injection attacks in code you write?', NULL, 'yes', 'Sanitization and encoding are core coding practices needed to block malicious scripts from running in users'' browsers.'),
 ('q-sc-5', 'cat-sc', 'yes_no', 'Have you configured multi-factor authentication (MFA) protocols or secure OAuth 2.0 / OpenID Connect authorization flows for user verification in production environments?', NULL, 'yes', 'Implementing industry-standard auth frameworks like OAuth 2.0 ensures secure third-party integration and identity assertions.');
 
--- Mobile Development MC & Yes/No
+-- Mobile Development MC & Yes/Nopn
 INSERT IGNORE INTO assessment_questions (id, category_id, question_type, question_text, options, correct_answer, explanation) VALUES
 ('q-mb-1', 'cat-mb', 'multiple_choice', 'When designing a responsive web layout, which CSS media query approach is universally recommended for optimization?', '[{"id":"A","text":"Desktop-first, scaling down for mobile devices"},{"id":"B","text":"Mobile-first, using min-width queries to add complexity for larger screens"},{"id":"C","text":"Using absolute pixel heights and widths for all viewport targets"},{"id":"D","text":"Writing separate CSS stylesheets for every brand of smartphone"}]', 'B', 'Mobile-first responsive design builds a lightweight layout for small screens first, using progressive enhancement (`min-width`) to style larger screen sizes.'),
 ('q-mb-2', 'cat-mb', 'multiple_choice', 'Which of the following is a primary characteristic of a Progressive Web App (PWA)?', '[{"id":"A","text":"It requires a traditional app store download"},{"id":"B","text":"It runs exclusively on desktop operating systems"},{"id":"C","text":"It can work offline by caching assets via Service Workers and can be installed directly on the home screen"},{"id":"D","text":"It completely replaces standard HTML with binary code"}]', 'C', 'PWAs use Service Workers to cache resources for offline availability and manifest files to let users install the web app to their home screens.'),
@@ -311,3 +311,121 @@ INSERT IGNORE INTO assessment_questions (id, category_id, question_type, questio
 ('q-db-3', 'cat-db', 'multiple_choice', 'When normalized databases reach the Third Normal Form (3NF), what is the primary benefit achieved?', '[{"id":"A","text":"All columns are encoded in binary for optimal speed"},{"id":"B","text":"Elimination of redundant data and transitive functional dependencies, preventing data modification anomalies"},{"id":"C","text":"The database is split into multiple distributed servers automatically"},{"id":"D","text":"Query execution plans are generated instantly without parsing"}]', 'B', '3NF eliminates redundant information by ensuring every non-key attribute depends strictly on the primary key, avoiding update/insert anomalies.'),
 ('q-db-4', 'cat-db', 'yes_no', 'Do you routinely analyze slow queries using tools like `EXPLAIN` to identify table scans and create target database indexes accordingly?', NULL, 'yes', 'Using query profilers like `EXPLAIN` shows how the database executes queries, allowing correct indexing to speed up performance.'),
 ('q-db-5', 'cat-db', 'yes_no', 'Have you designed database schemas featuring complex transactional integrity constraints, foreign keys, or cascading deletes to maintain consistent state across related tables?', NULL, 'yes', 'Schema relational integrity constraints prevent orphaned records and keep database records fully synchronized.');
+
+-- ==========================================
+-- MINI PROJECTS TABLES SCHEMA
+-- ==========================================
+
+CREATE TABLE IF NOT EXISTS mini_projects (
+    id VARCHAR(36) PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    description TEXT NOT NULL,
+    brief TEXT NOT NULL,
+    level ENUM('Beginner','Intermediate','Advanced') DEFAULT 'Intermediate',
+    duration VARCHAR(50),
+    tag VARCHAR(100),
+    related_skills JSON,
+    evaluation_criteria JSON,
+    sort_order INT DEFAULT 0,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS mini_project_role_mapping (
+    id VARCHAR(36) PRIMARY KEY,
+    target_role_pattern VARCHAR(255) NOT NULL,
+    mini_project_id VARCHAR(36) NOT NULL,
+    priority INT DEFAULT 0,
+    UNIQUE KEY uniq_role_proj (target_role_pattern, mini_project_id),
+    CONSTRAINT fk_mprm_project FOREIGN KEY (mini_project_id)
+        REFERENCES mini_projects(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS user_mini_project_submissions (
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    user_id VARCHAR(36) NOT NULL,
+    mini_project_id VARCHAR(36) NOT NULL,
+    status ENUM('not_started','in_progress','submitted','reviewed') DEFAULT 'not_started',
+    file_name VARCHAR(255),
+    file_url TEXT,
+    file_type VARCHAR(50),
+    overall_score INT,
+    strengths JSON,
+    improvements JSON,
+    objectives_met JSON,
+    ai_summary TEXT,
+    submitted_at TIMESTAMP NULL,
+    reviewed_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_umps_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_umps_project FOREIGN KEY (mini_project_id) REFERENCES mini_projects(id) ON DELETE CASCADE
+);
+
+-- ==========================================
+-- PRE-SEED MINI PROJECTS DATA
+-- ==========================================
+
+-- Seed Mini Projects
+INSERT IGNORE INTO mini_projects (id, title, description, brief, level, duration, tag, related_skills, evaluation_criteria, sort_order) VALUES
+-- Frontend Developer Mini Projects
+('mp-fe-1', 'Responsive Portfolio Landing Page', 'Build a modern, mobile-first portfolio landing page demonstrating semantic layout and responsive grid architectures.', 'Rancang dan buat sebuah halaman landing page portofolio profesional yang mobile-first. Halaman ini harus menampilkan profil singkat Anda, keahlian utama, showcase proyek (mock data), dan form kontak.\n\nPersyaratan Teknis:\n1. Gunakan HTML5 semantik (<header>, <main>, <section>, <footer>, <article>).\n2. Gunakan CSS modern (Flexbox dan CSS Grid) untuk tata letak.\n3. Wajib responsif sepenuhnya, diuji di viewport mobile (min-width: 320px) hingga desktop (1200px+).\n4. Terapkan prinsip visual hierarchy yang jelas dengan tipografi yang harmonis.\n5. Optimalkan file aset gambar menggunakan format modern (WebP/SVG).', 'Beginner', '2 hours', 'HTML/CSS', '["HTML5", "CSS3", "Responsive Design", "Mobile-First"]', '["Mobile responsiveness", "Semantic HTML usage", "Modern CSS methodologies (Flexbox/Grid)", "Clean structure"]', 1),
+
+('mp-fe-2', 'React Task Tracker Dashboard', 'Build a highly interactive React task tracker application showcasing complex state management and local persistence.', 'Buat aplikasi dashboard pelacak tugas (Task Tracker) interaktif berbasis React. Aplikasi ini harus memungkinkan pengguna untuk menambah, mengedit, menghapus, menyaring (filter berdasarkan status/prioritas), dan menandai tugas sebagai selesai.\n\nPersyaratan Teknis:\n1. Buat arsitektur komponen React yang modular dan reusable.\n2. Terapkan state management yang efisien (gunakan useState, useReducer, atau useContext jika diperlukan).\n3. Simpan data tugas di Local Storage agar tetap bertahan saat halaman direfresh.\n4. Sediakan fitur filter pencarian real-time.\n5. Tambahkan feedback visual (hover state, transition, empty state) untuk meningkatkan User Experience.', 'Intermediate', '4 hours', 'React', '["React", "State Management", "Local Storage", "Tailwind CSS"]', '["Component modularity", "Efficient state management", "Persistent state using localStorage", "Interactive UI controls"]', 2),
+
+('mp-fe-3', 'Analytics Dashboard with Charts', 'Create a premium data analytics dashboard featuring visual charts, deep filtering, and smooth interactive transitions.', 'Kembangkan sebuah panel instrumen (Analytics Dashboard) interaktif dengan grafik visualisasi data dan integrasi API tiruan (mock API).\n\nPersyaratan Teknis:\n1. Tampilkan minimal 3 jenis grafik menggunakan library charting (seperti Chart.js, Recharts, atau ApexCharts).\n2. Buat sistem filter berdasarkan rentang tanggal dan kategori data.\n3. Integrasikan framer-motion atau transition CSS untuk animasi transisi grafik dan filter data yang mulus.\n4. Terapkan loading skeleton state saat data sedang disimulasikan memuat.\n5. Desain responsif lengkap dengan panel menu navigasi samping (sidebar) yang dapat disembunyikan (collapsible).', 'Advanced', '6 hours', 'React/Next.js', '["Next.js", "API Integration", "Recharts", "Tailwind CSS", "Framer Motion"]', '["Performance & load optimizations", "Smooth UI transitions and animation feedback", "Complex state logic for search and multi-filtering", "Clean API data fetching and error handling"]', 3),
+
+-- Backend Developer Mini Projects
+('mp-be-1', 'REST API for Task Management', 'Design and implement a clean, lightweight Express RESTful API with validation and structured error handling.', 'Buatlah sebuah RESTful API yang solid menggunakan Node.js dan Express untuk sistem manajemen tugas (Task Management).\n\nPersyaratan Teknis:\n1. Implementasikan endpoint CRUD lengkap untuk resource Tasks (/api/tasks).\n2. Gunakan konvensi penamaan endpoint RESTful dan HTTP status codes yang tepat (200, 201, 400, 404, 500).\n3. Terapkan request body validation (misal menggunakan Joi atau Zod) untuk memastikan data input valid.\n4. Sediakan middleware penanganan error terpusat (centralized error handling middleware).\n5. Tulis README singkat mengenai instruksi setup dan endpoint documentation.', 'Beginner', '2 hours', 'Node.js/Express', '["Node.js", "Express", "RESTful Routing", "JSON validation"]', '["Standard REST routing conventions", "Proper HTTP status codes & standard error responses", "Basic request body validation", "Middleware organization"]', 1),
+
+('mp-be-2', 'JWT Auth System with Role-based Access', 'Build a secure authentication server featuring JWT tokens, secure password hashing, and authorization controls.', 'Rancang dan buat sistem autentikasi dan otorisasi mandiri (stateless authentication) yang aman menggunakan JSON Web Token (JWT).\n\nPersyaratan Teknis:\n1. Implementasikan fitur registrasi pengguna dengan password yang di-hash menggunakan bcrypt.\n2. Buat endpoint Login yang memvalidasi kredensial dan mengembalikan Token JWT yang aman (HttpOnly cookies sangat direkomendasikan).\n3. Buat middleware otorisasi untuk membatasi akses endpoint berdasarkan peran pengguna (misal: "Admin" vs "User").\n4. Hubungkan dengan database relasional (seperti MySQL atau PostgreSQL) dan gunakan prepared statements untuk mencegah SQL Injection.\n5. Terapkan token expiration dan refresh token mechanism.', 'Intermediate', '4 hours', 'Express/MySQL', '["JWT", "bcryptjs", "MySQL", "Security", "Prepared Statements"]', '["Secure password hashing using bcrypt", "Correct stateless token sign/verify flow", "Role-based authorization middleware", "Database query optimization and security"]', 2),
+
+('mp-be-3', 'Real-time WebSocket Chat Engine', 'Develop an event-driven websocket chat engine with channel rooms, pub/sub architecture, and scale readiness.', 'Bangun backend mesin obrolan real-time (Real-time Chat Engine) yang mendukung beberapa ruangan obrolan (chat rooms) menggunakan WebSockets (Socket.io).\n\nPersyaratan Teknis:\n1. Implementasikan server WebSocket yang menangani koneksi client, join room, mengirim pesan ke room tertentu, dan melacak user yang online.\n2. Integrasikan Redis sebagai pub/sub adapter agar server dapat diskalakan horizontal di masa mendatang (bisa disimulasikan secara lokal).\n3. Simpan riwayat chat ke dalam database untuk dimuat kembali saat user masuk room.\n4. Tangani kasus edge-case seperti pemutusan koneksi yang tidak terduga (unexpected disconnect) dan rekoneksi otomatis.\n5. Amankan koneksi WebSocket menggunakan validasi token JWT pada saat proses handshake.', 'Advanced', '6 hours', 'Node.js/WebSockets', '["WebSockets", "Redis", "Event-driven architecture", "Microservices", "Socket.io"]', '["Robust WebSocket connection handling", "Pub/Sub integration or event emitters", "Scalability considerations", "Graceful reconnection handling"]', 3),
+
+-- Data Scientist Mini Projects
+('mp-ds-1', 'House Price Prediction Pipeline', 'Develop an end-to-end regression pipeline starting from messy raw data cleaning to a trained predictor model.', 'Kembangkan pipa pemrosesan data (data pipeline) dan model regresi untuk memprediksi harga rumah berdasarkan berbagai fitur properti.\n\nPersyaratan Teknis:\n1. Lakukan pembersihan data: tangani nilai yang hilang (missing values), outlier, dan duplikasi data menggunakan Pandas.\n2. Lakukan feature engineering: ubah variabel kategorik menjadi numerik (One-Hot Encoding) dan lakukan penskalaan fitur (Scaling/Normalization).\n3. Latih model regresi (misal: Linear Regression atau Decision Tree Regression) menggunakan Scikit-Learn.\n4. Evaluasi model menggunakan metrik standar: R2 Score, Mean Absolute Error (MAE), dan RMSE.\n5. Dokumentasikan seluruh eksperimen dalam Jupyter Notebook yang bersih dengan visualisasi korelasi fitur.', 'Beginner', '3 hours', 'Python/Pandas', '["Python", "Pandas", "Linear Regression", "Data Cleaning"]', '["Handling of missing values and outliers", "Proper feature scaling & encoding", "Model implementation and basic evaluation metrics (R2, RMSE)", "Clear visualization of correlations"]', 1),
+
+('mp-ds-2', 'Customer Churn Classification Model', 'Build a random forest classifier to identify high-risk customer churn with feature importance and class balancing.', 'Bangun model klasifikasi biner untuk memprediksi apakah seorang pelanggan akan berhenti menggunakan layanan (churn) berdasarkan data perilaku mereka.\n\nPersyaratan Teknis:\n1. Analisis ketidakseimbangan kelas (class imbalance) pada dataset dan terapkan teknik penyeimbangan data (seperti SMOTE atau penyesuaian class weights).\n2. Lakukan seleksi fitur penting (Feature Importance) untuk mengidentifikasi faktor utama penyebab churn.\n3. Latih model klasifikasi tingkat lanjut (seperti Random Forest Classifier atau XGBoost).\n4. Evaluasi performa model menggunakan Confusion Matrix, Precision, Recall, F1-Score, dan grafik ROC-AUC.\n5. Buat laporan analisis insight bisnis berdasarkan temuan model.', 'Intermediate', '5 hours', 'Python/Scikit-Learn', '["Python", "Scikit-Learn", "Random Forest", "Feature Engineering", "Imbalance Data"]', '["Detailed feature engineering", "Model selection and comparison", "Use of classification report, confusion matrix, ROC-AUC", "Handling class imbalance"]', 2),
+
+('mp-ds-3', 'Deep Learning Text Classifier', 'Train or fine-tune a BERT-based transformer model for NLP classification task with optimized performance.', 'Bangun model Klasifikasi Teks Deep Learning untuk mendeteksi sentimen atau kategori artikel menggunakan arsitektur Transformer.\n\nPersyaratan Teknis:\n1. Bangun pipeline pemrosesan teks tingkat lanjut (tokenisasi, padding, masking) menggunakan library HuggingFace Transformers.\n2. Lakukan fine-tuning pada model terlatih (seperti BERT atau DistilBERT) menggunakan PyTorch atau TensorFlow.\n3. Terapkan strategi optimasi pelatihan: learning rate scheduling, early stopping, dan gradient clipping.\n4. Evaluasi model pada dataset pengujian dan ukur latensi inferensi rata-rata per sampel.\n5. Rancang antarmuka sederhana (misal menggunakan Streamlit atau Gradio) untuk mendemonstrasikan prediksi real-time model.', 'Advanced', '7 hours', 'Python/PyTorch', '["PyTorch", "NLP", "BERT", "Transformers", "Model Fine-tuning"]', '["Text tokenization and padding pipeline", "Transfer learning implementation", "Training loop optimization", "Inference speed and batching strategy"]', 3),
+
+-- UI/UX Designer Mini Projects
+('mp-ui-1', 'Mobile Task Manager Wireframe', 'Create intuitive low-to-mid-fidelity wireframes and task flows for a mobile productivity app.', 'Rancang wireframe low-to-mid fidelity untuk aplikasi seluler manajemen tugas harian yang fokus pada kemudahan penggunaan dan produktivitas.\n\nPersyaratan Teknis:\n1. Petakan user flow utama dari pembuatan tugas baru hingga penandaan tugas selesai.\n2. Rancang tata letak wireframe yang konsisten menggunakan sistem grid yang tepat untuk perangkat mobile.\n3. Terapkan visual hierarchy yang jelas pada teks, tombol, dan elemen navigasi.\n4. Desain layar minimal: Onboarding, Home/Dashboard, Task Detail, dan Create Task.\n5. Buat dokumentasi singkat mengenai keputusan UX dan alasan di balik tata letak yang dipilih.', 'Beginner', '2 hours', 'Figma/Wireframing', '["Figma", "Information Architecture", "UX Flow", "Wireframing"]', '["Clarity of user flow", "Consistent typography and spacing", "Intuitive navigation pattern", "Clear content hierarchy"]', 1),
+
+('mp-ui-2', 'SaaS Dashboard Design System', 'Design a scalable design system for a SaaS application with reusable components and tokens.', 'Buatlah sistem desain (Design System) yang terstruktur dan scalable di Figma untuk aplikasi web SaaS (Software as a Service) Dashboard.\n\nPersyaratan Teknis:\n1. Definisikan palet warna dasar (Primary, Secondary, Neutral, Semantic) yang memenuhi standar aksesibilitas WCAG 2.1 AA.\n2. Buat skala tipografi (Type Scale) yang konsisten untuk berbagai ukuran layar.\n3. Rancang komponen UI atomik yang reusable menggunakan fitur Auto Layout dan Variants di Figma (Tombol, Input Field, Badge, Card, Modal).\n4. Buat panduan dokumentasi penggunaan komponen dan token desain.\n5. Terapkan sistem desain ini pada minimal 2 halaman dashboard contoh.', 'Intermediate', '4 hours', 'Figma/Design Systems', '["Figma", "Design System", "UI Components", "Accessibility", "Auto Layout"]', '["Use of Figma auto-layout and components", "Accessibility compliant color palette (WCAG 2.1)", "Reusable and documented design tokens", "Responsive layout grid variations"]', 2),
+
+('mp-ui-3', 'High-Fidelity Interactive E-wallet', 'Develop a premium, interactive high-fidelity prototype of an e-wallet app with smart micro-interactions.', 'Kembangkan prototipe interaktif high-fidelity untuk aplikasi dompet digital (E-wallet) yang fokus pada visual estetis premium dan animasi transisi yang mulus.\n\nPersyaratan Teknis:\n1. Desain UI visual berkualitas tinggi dengan tema modern (tren glassmorphism, gradien halus, atau tema gelap yang elegan).\n2. Buat micro-interactions yang kaya dan realistis menggunakan fitur Smart Animate di Figma (transisi geser kartu, animasi pemuatan pembayaran, feedback sukses).\n3. Petakan alur lengkap dari transfer uang: pilih kontak, masukkan nominal, konfirmasi PIN, hingga halaman transaksi berhasil/gagal.\n4. Rancang penanganan error state yang estetik saat transaksi gagal.\n5. Pastikan prototipe siap untuk ditunjukkan dalam sesi pengujian kegunaan (usability testing).', 'Advanced', '6 hours', 'Figma/Prototyping', '["Figma", "Interactive Prototyping", "Micro-interactions", "Usability Testing", "UI Design"]', '["Smooth and realistic micro-interactions (smart animate)", "Handling of edge cases", "Comprehensive user testing flows", "Visual aesthetics and design feel"]', 3),
+
+-- Freelance Mini Projects
+('mp-fl-1', 'Freelance Business Portfolio Site', 'Build a professional portfolio website layout optimizing copywriting, SEO, and contact generation.', 'Buat halaman portofolio mandiri untuk bisnis freelance Anda yang dioptimalkan untuk menarik calon klien luar negeri.\n\nPersyaratan Teknis:\n1. Tulis copywriting yang memikat, menjelaskan nilai tambah (value proposition) jasa Anda, portofolio proyek sebelumnya, dan testimoni klien.\n2. Rancang struktur layout yang bersih dan responsif menggunakan Tailwind CSS.\n3. Terapkan dasar-dasar SEO: tambahkan meta tags deskripsi, judul halaman yang relevan, serta open graph tags.\n4. Buat form kontak/CTA (Call-to-Action) yang mencolok dan mudah digunakan.\n5. Optimalkan kecepatan muat halaman dengan mengompres gambar dan meminimalkan aset visual.', 'Beginner', '3 hours', 'HTML/Tailwind', '["HTML5", "Tailwind CSS", "Responsive Design", "SEO Basics", "Copywriting"]', '["Professional layout and copywriting", "Fast load speed and asset optimization", "SEO meta tags and title configurations", "Responsive contact form layout"]', 1),
+
+('mp-fl-2', 'Client Project Proposal & SOW Document', 'Create a professional, highly persuasive client project proposal and technical Scope of Work document.', 'Susun sebuah dokumen Proposal Proyek & Scope of Work (SOW) profesional berskala menengah untuk calon klien.\n\nPersyaratan Teknis:\n1. Uraikan pemahaman Anda tentang masalah klien dan solusi teknis yang Anda tawarkan.\n2. Definisikan batasan ruang lingkup proyek secara eksplisit untuk mencegah Scope Creep.\n3. Buat pembagian mileston proyek beserta estimasi waktu pengerjaan yang realistis.\n4. Susun rincian biaya penawaran dengan struktur harga yang transparan (misal: fixed-price atau hourly-rate).\n5. Sajikan dalam format PDF terstruktur rapi dengan tipografi profesional.', 'Intermediate', '4 hours', 'Proposal/Technical Writing', '["Technical Writing", "Project Estimation", "SOW Creation", "Pricing Strategies"]', '["Clear scope definition and deliverables", "Realistic timeline breakdown (Milestones)", "Transparent pricing structure and terms", "Risk analysis and assumptions section"]', 2),
+
+('mp-fl-3', 'Freelance Client Contract & SLA', 'Draft a bulletproof freelance contract and support SLA to safeguard operations and clarify expectations.', 'Rancang draf kontrak kerja freelance (Freelance Contract) dan Perjanjian Tingkat Layanan (SLA) untuk proyek pengembangan web/desain jangka panjang.\n\nPersyaratan Teknis:\n1. Cantumkan pasal kepemilikan Hak Kekayaan Intelektual (IP Intellectual Property) yang jelas setelah pelunasan.\n2. Atur skema pembayaran termin (down-payment, milestone-payment, final-payment) beserta klausul denda keterlambatan.\n3. Buat klausul penanganan perubahan kebutuhan (Change Management) dan penambahan biaya.\n4. Rancang draf SLA yang mencakup waktu respons dukungan (response time), jam kerja operasional, dan batasan pemeliharaan bulanan.\n5. Tulis klausul penghentian kontrak (termination clause) yang adil untuk kedua belah pihak.', 'Advanced', '5 hours', 'Contracts/Operations', '["Legal Writing", "SLA Drafting", "Change Management", "Invoicing terms"]', '["Explicit IP ownership clauses", "Fair payment schedule and late fees policy", "Standard termination clauses", "Detailed support and maintenance service level agreement"]', 3);
+
+-- Seed Mini Project Mappings
+INSERT IGNORE INTO mini_project_role_mapping (id, target_role_pattern, mini_project_id, priority) VALUES
+-- Frontend Developer Mappings
+('mprm-fe-1', 'Frontend Developer', 'mp-fe-1', 1),
+('mprm-fe-2', 'Frontend Developer', 'mp-fe-2', 2),
+('mprm-fe-3', 'Frontend Developer', 'mp-fe-3', 3),
+
+-- Backend Developer Mappings
+('mprm-be-1', 'Backend Developer', 'mp-be-1', 1),
+('mprm-be-2', 'Backend Developer', 'mp-be-2', 2),
+('mprm-be-3', 'Backend Developer', 'mp-be-3', 3),
+
+-- Data Scientist Mappings
+('mprm-ds-1', 'Data Scientist', 'mp-ds-1', 1),
+('mprm-ds-2', 'Data Scientist', 'mp-ds-2', 2),
+('mprm-ds-3', 'Data Scientist', 'mp-ds-3', 3),
+
+-- UI/UX Designer Mappings
+('mprm-ui-1', 'UI/UX Designer', 'mp-ui-1', 1),
+('mprm-ui-2', 'UI/UX Designer', 'mp-ui-2', 2),
+('mprm-ui-3', 'UI/UX Designer', 'mp-ui-3', 3),
+
+-- Freelance Mappings
+('mprm-fl-1', 'Freelance', 'mp-fl-1', 1),
+('mprm-fl-2', 'Freelance', 'mp-fl-2', 2),
+('mprm-fl-3', 'Freelance', 'mp-fl-3', 3);
+

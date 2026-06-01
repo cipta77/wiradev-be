@@ -36,3 +36,21 @@ export const upload = multer({
     }
   },
 });
+
+export const uploadProjectFile = multer({
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    const allowedExtensions = [
+      ".zip", ".rar", ".pdf", ".docx", ".doc", ".pptx", ".ppt", ".txt", ".json", 
+      ".js", ".ts", ".jsx", ".tsx", ".py", ".java"
+    ];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowedExtensions.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Invalid file type. Only ZIP, RAR, PDF, DOCX, PPTX, and standard source code files are allowed."));
+    }
+  },
+});
+
