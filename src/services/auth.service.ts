@@ -138,7 +138,7 @@ export class AuthService {
   async getProfileByToken(token: string): Promise<User | null> {
     try {
       const payload = jwt.verify(token, this.accessSecret) as { sub: string };
-      // Use userService.getUserById to include github_connected
+      // Use userService.getUserById
       return await this.userService.getUserById(payload.sub);
     } catch {
       return null;

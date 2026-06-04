@@ -226,11 +226,6 @@ export class UserController {
   completeOnboarding = async (req: Request, res: Response): Promise<void> => {
     try {
       const id = req.params.id as string;
-      const { githubId } = req.body;
-
-      if (githubId) {
-        await this.userService.linkProvider(id, "github", githubId);
-      }
 
       const user = await this.userService.completeOnboardingStatus(id);
       const { password_hash, ...safeUser } = user as any;

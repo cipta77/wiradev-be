@@ -29,11 +29,7 @@ export class UserService {
       throw new Error("User not found");
     }
 
-    // Inject github_connected from auth_providers table
-    const providers = await this.authProviderRepository.findByUserId(id);
-    const github_connected = providers.some((p) => p.provider === "github");
-
-    return { ...user, github_connected } as any;
+    return user as any;
   }
 
   async linkProvider(userId: string, provider: string, providerUserId: string): Promise<AuthProvider> {

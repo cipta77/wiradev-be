@@ -3,6 +3,8 @@ import { UserRepository as RepoUser } from "../repositories/user.repository";
 import { CvScreening, CreateCvScreeningDTO } from "../types/cv-screening.types";
 import fs from "fs";
 import path from "path";
+import pdfParse from "pdf-parse";
+import mammoth from "mammoth";
 
 export class CvScreeningService {
   private cvScreeningRepository = new CvScreeningRepository();
@@ -36,40 +38,32 @@ export class CvScreeningService {
     const field = fieldOfStudy || "Computer Science";
 
     // Dynamic categories based on role
-    let keywordsFound = ["Git", "HTML", "CSS", "SQL", "Agile"];
-    let keywordsMissing = ["Docker", "TypeScript", "System Design"];
+    let strengths = ["Familiar with basic web development concepts", "Database structure understanding"];
+    let weaknesses = ["Lacks modern frontend frameworks experience", "No mention of state management tools"];
     
     if (role.toLowerCase().includes("front")) {
-      keywordsFound.push("JavaScript", "React", "Tailwind CSS", "Responsive Design");
-      keywordsMissing.push("TypeScript", "Redux", "Next.js", "Jest");
+      strengths = ["Strong understanding of responsive design", "Good grasp of JavaScript fundamentals"];
+      weaknesses = ["Could improve testing (Jest/Cypress) coverage", "Lacks advanced performance optimization techniques"];
     } else if (role.toLowerCase().includes("back")) {
-      keywordsFound.push("Node.js", "Express", "REST APIs", "MySQL");
-      keywordsMissing.push("Redis", "Docker", "MongoDB", "TypeScript", "CI/CD");
+      strengths = ["Solid API design patterns", "Good database architecture skills"];
+      weaknesses = ["No experience with containerization (Docker)", "Missing CI/CD pipelines knowledge"];
     } else if (role.toLowerCase().includes("data") || role.toLowerCase().includes("ai")) {
-      keywordsFound.push("Python", "Pandas", "NumPy", "Statistics");
-      keywordsMissing.push("Machine Learning", "Scikit-Learn", "SQL", "Docker");
+      strengths = ["Strong analytical background", "Familiar with data processing libraries"];
+      weaknesses = ["Needs more production deployment experience", "Lacks distributed computing skills"];
     } else {
-      keywordsFound.push("Algorithms", "Data Structures", "Java", "Python");
-      keywordsMissing.push("TypeScript", "Docker", "AWS");
+      strengths = ["Good fundamental programming skills", "Strong academic foundation"];
+      weaknesses = ["Lacks real-world industry experience", "Needs more cloud deployment exposure"];
     }
 
     return {
       overall_score: 74,
-      contact_score: 85,
-      summary_score: 70,
-      skills_score: 78,
-      experience_score: 68,
-      projects_score: 75,
-      education_score: 80,
-      ats_score: 72,
-      keywords_found: keywordsFound,
-      keywords_missing: keywordsMissing,
-      ai_summary: `The CV of ${name} demonstrates a solid foundation in ${field} from ${uni}. The profile is well-aligned with the ${role} target role, particularly showing strength in core developer tools and methodology. However, there is a clear opportunity to elevate this CV by highlighting more modern frameworks and advanced tools relevant to this career track.`,
+      strengths: strengths,
+      weaknesses: weaknesses,
+      ai_summary: `The CV of ${name} demonstrates a solid foundation in ${field} from ${uni}. The profile is well-aligned with the ${role} target role, particularly showing strength in core areas. However, there is a clear opportunity to elevate this CV by addressing the mentioned weaknesses.`,
       recommendations: [
-        `Reformat the skills section to group technologies logically and highlight ${keywordsMissing.slice(0, 2).join(" and ")} explicitly.`,
+        `Highlight ${weaknesses[0].toLowerCase()} by adding a relevant project or certification.`,
         `Add measurable impact (e.g. percentages, performance gains) in the descriptions of your project/work experiences.`,
-        "Ensure your professional contact info (GitHub, LinkedIn) is placed prominently at the top of the header.",
-        `Incorporate at least one high-quality project utilizing ${keywordsMissing[0]} to directly match modern industry expectations for ${role}.`
+        "Ensure your professional contact info (GitHub, LinkedIn) is placed prominently at the top of the header."
       ]
     };
   }
@@ -89,12 +83,50 @@ export class CvScreeningService {
     const targetRole = user.target_role || "Software Developer";
     const graduationYear = user.graduation_year || "N/A";
 
+    let cvText = "";
+    let base64Image: string | undefined;
+
+    try {
+      const cleanPath = fileUrl.replace(/^\/?uploads\//, "");
+      const filePath = path.join(process.cwd(), "uploads", cleanPath);
+      
+      if (fs.existsSync(filePath)) {
+        console.log(`[CvScreening] Processing file ${fileName}...`);
+        const fileExt = path.extname(fileName).toLowerCase();
+        
+        if ([".jpg", ".jpeg", ".png", ".webp"].includes(fileExt)) {
+          const dataBuffer = fs.readFileSync(filePath);
+          const mimeType = fileExt === ".jpg" || fileExt === ".jpeg" ? "jpeg" : fileExt.replace(".", "");
+          base64Image = `data:image/${mimeType};base64,${dataBuffer.toString("base64")}`;
+          cvText = "CV provided as an image.";
+        } else if (fileExt === ".pdf") {
+          const dataBuffer = fs.readFileSync(filePath);
+          const pdfData = await pdfParse(dataBuffer);
+          cvText = pdfData.text;
+        } else if (fileExt === ".docx") {
+          const result = await mammoth.extractRawText({ path: filePath });
+          cvText = result.value;
+        } else {
+          cvText = fs.readFileSync(filePath, "utf-8");
+        }
+        
+        if (cvText.length > 15000) {
+          cvText = cvText.substring(0, 15000) + "... (truncated)";
+        }
+        
+        console.log(`[CvScreening] Successfully processed file.`);
+      }
+    } catch (err) {
+      console.warn("[CvScreening] Failed to extract/read file:", err);
+      cvText = "Could not extract text from the file.";
+    }
+
     let analysisResult: any;
 
     // 2. Call OpenRouter API
     const apiKey = process.env.OPENROUTER_API_KEY;
     const primaryModel = process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free";
-    const modelChain = [
+    const textModelChain = [
       primaryModel,
       "openai/gpt-oss-120b:free",
       "z-ai/glm-4.5-air:free",
@@ -112,8 +144,19 @@ export class CvScreeningService {
       "meta-llama/llama-3.3-70b-instruct:free",
       "meta-llama/llama-3.2-3b-instruct:free",
       "nousresearch/hermes-3-llama-3.1-405b:free",
-    ].filter((m, i, arr) => arr.indexOf(m) === i);
+    ];
 
+    const visionModelChain = [
+      primaryModel,
+      "google/gemma-4-31b-it:free",
+      "google/gemma-4-26b-a4b-it:free",
+      "moonshotai/kimi-k2.6:free",
+      "nvidia/nemotron-nano-12b-v2-vl:free"
+    ];
+
+    const modelChain = (base64Image ? visionModelChain : textModelChain).filter((m, i, arr) => arr.indexOf(m) === i);
+
+    let lastError = "";
     if (apiKey) {
       const systemPrompt = `You are an expert HR Specialist and professional ATS (Applicant Tracking System) CV screening assistant. Your task is to analyze the candidate's credentials and target role, then generate a highly professional and realistic screening assessment.`;
 
@@ -126,20 +169,24 @@ Field of Study: ${fieldOfStudy}
 Graduation Year: ${graduationYear}
 CV File: ${fileName}
 
-Since you are analyzing this CV, evaluate their match for the role. Return a detailed and beautifully constructed JSON object with exact ratings. Be constructive but professional.
+--- CV CONTENT START ---
+${cvText}
+--- CV CONTENT END ---
+
+Since you are analyzing this CV, evaluate their match for the role based on the CV content above. 
+Please score the CV strictly based on this rubric (Total 100 points):
+- Education & Background (20 pts): Relevance of university/field of study to the role.
+- Experience & Projects (40 pts): Quality, relevance, and impact of past work.
+- Technical/Core Skills (30 pts): Presence of necessary skills for the target role.
+- Presentation & Formatting (10 pts): Clarity, typos, and professionalism.
+
+Return a detailed and beautifully constructed JSON object. Be constructive but professional.
 The JSON object MUST contain exactly these fields:
 1. "overall_score": integer between 0 and 100
-2. "contact_score": integer between 0 and 100
-3. "summary_score": integer between 0 and 100
-4. "skills_score": integer between 0 and 100
-5. "experience_score": integer between 0 and 100
-6. "projects_score": integer between 0 and 100
-7. "education_score": integer between 0 and 100
-8. "ats_score": integer between 0 and 100
-9. "keywords_found": array of strings (realistic skills they probably have on their resume, e.g. React, Git, JavaScript, etc.)
-10. "keywords_missing": array of strings (realistic standard industry skills they are missing or should add, e.g. TypeScript, Docker, etc.)
-11. "ai_summary": string (a highly professional, cohesive 3-4 sentence summary of their profile strengths, alignment with target role, and key improvement areas)
-12. "recommendations": array of strings (3-5 clear, highly actionable steps to improve their CV score)
+2. "strengths": array of strings (3-5 key strengths or advantages found in their CV regarding the target role)
+3. "weaknesses": array of strings (3-5 key weaknesses, missing skills, or areas of improvement regarding the target role)
+4. "ai_summary": string (a highly professional, cohesive 3-4 sentence summary of their profile strengths, alignment with target role, and key improvement areas)
+5. "recommendations": array of strings (3-5 clear, highly actionable steps to improve their CV score)
 
 IMPORTANT: Output ONLY the valid JSON object. Do not include any explanations, introduction, markdown blocks, or other text outside the JSON.
 `;
@@ -158,9 +205,19 @@ IMPORTANT: Output ONLY the valid JSON object. Do not include any explanations, i
             },
             body: JSON.stringify({
               model,
+              temperature: 0.1,
+              top_p: 0.9,
               messages: [
                 { role: "system", content: systemPrompt },
-                { role: "user", content: userPrompt }
+                { 
+                  role: "user", 
+                  content: base64Image 
+                    ? [
+                        { type: "text", text: userPrompt },
+                        { type: "image_url", image_url: { url: base64Image } }
+                      ]
+                    : userPrompt 
+                }
               ]
             }),
             signal: AbortSignal.timeout(20000)
@@ -169,34 +226,36 @@ IMPORTANT: Output ONLY the valid JSON object. Do not include any explanations, i
           if (response.status === 429 || response.status === 404) {
             const errText = await response.text();
             console.warn(`[CvScreening] Model ${model} returned ${response.status}, skipping. (${errText.substring(0, 100)})`);
+            lastError = `Model ${model} returned ${response.status} - ${errText.substring(0, 50)}`;
             continue;
           }
 
           if (!response.ok) {
             console.error(`[CvScreening] Model ${model} error ${response.status}: ${response.statusText}`);
+            lastError = `Model ${model} error ${response.status}: ${response.statusText}`;
             continue;
           }
 
-          const data = await response.json();
-          const content = data.choices?.[0]?.message?.content;
-          if (content) {
-            analysisResult = this.extractJson(content);
-            console.log(`[CvScreening] ✅ Success with model: ${model}`);
-            break;
+            const data = await response.json();
+            const content = data.choices?.[0]?.message?.content;
+            if (content) {
+              analysisResult = this.extractJson(content);
+              console.log(`[CvScreening] ✅ Success with model: ${model}`);
+              break;
+            }
+          } catch (error: any) {
+            console.warn(`[CvScreening] Model ${model} threw an error:`, error);
+            lastError = `Model ${model} threw an error: ${error.message || error}`;
           }
-        } catch (error) {
-          console.warn(`[CvScreening] Model ${model} threw an error:`, error);
         }
+      } else {
+        console.warn("[CvScreening] OPENROUTER_API_KEY is not defined.");
+        lastError = "OPENROUTER_API_KEY is not defined.";
       }
-    } else {
-      console.warn("[CvScreening] OPENROUTER_API_KEY is not defined. Using fallback.");
-    }
-
-    // 3. Fallback if AI call failed or key is missing
-    if (!analysisResult) {
-      console.log("Using dynamic fallback generator for CV screening");
-      analysisResult = this.generateFallbackAnalysis(firstName, lastName, targetRole, university, fieldOfStudy);
-    }
+  
+      if (!analysisResult) {
+        throw new Error(`AI Analysis failed for all available models. Please try again later. Last error: ${lastError}`);
+      }
 
     // 4. Save to Database
     const screeningData: CreateCvScreeningDTO = {
@@ -204,15 +263,8 @@ IMPORTANT: Output ONLY the valid JSON object. Do not include any explanations, i
       file_name: fileName,
       file_url: fileUrl,
       overall_score: analysisResult.overall_score || 70,
-      contact_score: analysisResult.contact_score || 80,
-      summary_score: analysisResult.summary_score || 75,
-      skills_score: analysisResult.skills_score || 70,
-      experience_score: analysisResult.experience_score || 65,
-      projects_score: analysisResult.projects_score || 70,
-      education_score: analysisResult.education_score || 80,
-      ats_score: analysisResult.ats_score || 70,
-      keywords_found: analysisResult.keywords_found || [],
-      keywords_missing: analysisResult.keywords_missing || [],
+      strengths: analysisResult.strengths || [],
+      weaknesses: analysisResult.weaknesses || [],
       ai_summary: analysisResult.ai_summary || "Profile analysis completed successfully.",
       recommendations: analysisResult.recommendations || []
     };

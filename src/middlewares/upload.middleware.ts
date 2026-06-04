@@ -43,13 +43,13 @@ export const uploadProjectFile = multer({
   fileFilter: (req, file, cb) => {
     const allowedExtensions = [
       ".zip", ".rar", ".pdf", ".docx", ".doc", ".pptx", ".ppt", ".txt", ".json", 
-      ".js", ".ts", ".jsx", ".tsx", ".py", ".java"
+      ".js", ".ts", ".jsx", ".tsx", ".py", ".java", ".jpg", ".jpeg", ".png", ".webp"
     ];
     const ext = path.extname(file.originalname).toLowerCase();
     if (allowedExtensions.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error("Invalid file type. Only ZIP, RAR, PDF, DOCX, PPTX, and standard source code files are allowed."));
+      cb(new Error("Invalid file type. Only ZIP, RAR, PDF, DOCX, PPTX, Images (JPG, PNG), and standard source code files are allowed."));
     }
   },
 });

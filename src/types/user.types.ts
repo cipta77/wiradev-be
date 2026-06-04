@@ -15,7 +15,6 @@ export interface User {
   transcript_url: string | null;
   onboarding_completed: boolean;
   is_email_verified: boolean;
-  github_connected: boolean;
   created_at: Date;
   updated_at: Date;
 }
