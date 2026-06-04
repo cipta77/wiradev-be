@@ -327,11 +327,20 @@ export async function getDashboardSummary(req: Request, res: Response) {
     const authUser = req.user;
 
     let user;
-    let readinessScore = 62;
+    let readinessScore = 0;
+    let growthProgress = {
+      skillsMapped: 0,
+      totalSkills: 10,
+      projectsDone: 0,
+      totalProjects: 8,
+      simulationsDone: 0,
+      totalSimulations: 5,
+    };
+
     if (authUser) {
       const name =
         [authUser.first_name, authUser.last_name].filter(Boolean).join(" ") ||
-        "Ubay Dillah";
+        "Career Seeker";
       user = {
         name: name,
         role:
@@ -348,6 +357,44 @@ export async function getDashboardSummary(req: Request, res: Response) {
       if (userDb.length > 0 && userDb[0].readiness_score !== null) {
         readinessScore = Math.round(Number(userDb[0].readiness_score));
       }
+      
+      // Fetch Growth Progress
+      const latestAssessment = await query<RowDataPacket[]>(
+        `SELECT id FROM user_assessments WHERE user_id = ? AND completed_at IS NOT NULL ORDER BY completed_at DESC LIMIT 1`,
+        [authUser.id]
+      );
+      if (latestAssessment.length > 0) {
+        const skillsCount = await query<RowDataPacket[]>(
+          `SELECT COUNT(DISTINCT q.category_id) as mapped 
+           FROM user_assessment_answers uaa 
+           JOIN assessment_questions q ON q.id = uaa.question_id 
+           WHERE uaa.assessment_id = ?`,
+           [latestAssessment[0].id]
+        );
+        growthProgress.skillsMapped = Number(skillsCount[0].mapped || 0);
+      }
+      
+      const projectsCount = await query<RowDataPacket[]>(
+        `SELECT COUNT(*) as done FROM user_mini_project_submissions WHERE user_id = ? AND status = 'reviewed'`,
+        [authUser.id]
+      );
+      growthProgress.projectsDone = Number(projectsCount[0].done || 0);
+
+      const totalProjectsDb = await query<RowDataPacket[]>(
+        `SELECT COUNT(*) as total 
+         FROM mini_projects mp
+         INNER JOIN mini_project_role_mapping mpr ON mp.id = mpr.mini_project_id
+         WHERE mpr.target_role_pattern = ? AND mp.is_active = 1`,
+        [user.role]
+      );
+      growthProgress.totalProjects = Number(totalProjectsDb[0].total || 3);
+
+      const simulationsCount = await query<RowDataPacket[]>(
+        `SELECT COUNT(*) as done FROM simulations WHERE user_id = ? AND status = 'completed'`,
+        [authUser.id]
+      );
+      growthProgress.simulationsDone = Number(simulationsCount[0].done || 0);
+
     } else {
       user = {
         name: "Ubay Dillah",
@@ -373,6 +420,7 @@ export async function getDashboardSummary(req: Request, res: Response) {
         streak: 3,
         readinessScore: readinessScore,
         readinessTrend: "+8%",
+        growthProgress,
       },
     });
   } catch (error) {

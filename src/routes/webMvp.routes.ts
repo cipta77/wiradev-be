@@ -19,9 +19,15 @@ import {
 import { requireAuth } from "../middlewares/auth.middleware";
 import { MiniProjectController } from "../controllers/mini-project.controller";
 import { uploadProjectFile } from "../middlewares/upload.middleware";
+import { SimulationController } from "../controllers/simulation.controller";
+import { CvScreeningController } from "../controllers/cv-screening.controller";
+import { JobdeskAnalyzerController } from "../controllers/jobdesk-analyzer.controller";
 
 const router = Router();
 const miniProjectController = new MiniProjectController();
+const simulationController = new SimulationController();
+const cvScreeningController = new CvScreeningController();
+const jobdeskAnalyzerController = new JobdeskAnalyzerController();
 
 router.get("/test-db", testDb);
 router.get("/onboarding", getOnboarding);
@@ -44,5 +50,19 @@ router.get("/mini-projects", requireAuth, miniProjectController.getProjects);
 router.get("/mini-projects/:id", requireAuth, miniProjectController.getProjectDetail);
 router.post("/mini-projects/:id/start", requireAuth, miniProjectController.startProject);
 router.post("/mini-projects/:id/submit", requireAuth, uploadProjectFile.single("file"), miniProjectController.submitProject);
+
+// AI Simulation routes
+router.post("/simulations/start", requireAuth, simulationController.startSimulation);
+router.post("/simulations/:id/message", requireAuth, simulationController.submitMessage);
+router.get("/simulations/:id", requireAuth, simulationController.getDetails);
+
+// CV Screening routes
+router.post("/cv-screening/upload", requireAuth, uploadProjectFile.single("cv"), cvScreeningController.upload);
+router.get("/cv-screening/history", requireAuth, cvScreeningController.getHistory);
+router.get("/cv-screening/:id", requireAuth, cvScreeningController.getById);
+router.delete("/cv-screening/:id", requireAuth, cvScreeningController.deleteById);
+
+// Jobdesk Analyzer route
+router.post("/jobdesk/analyze", requireAuth, jobdeskAnalyzerController.analyze);
 
 export default router;
