@@ -5,7 +5,10 @@ const authService = new AuthService();
 
 export const requireAuth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const token = req.cookies?.access_token;
+    let token = req.cookies?.access_token;
+    if (!token && req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
+      token = req.headers.authorization.split(" ")[1];
+    }
     if (!token) {
       res.status(401).json({ message: "Unauthorized" });
       return;

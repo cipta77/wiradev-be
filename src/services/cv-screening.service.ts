@@ -3,7 +3,7 @@ import { UserRepository as RepoUser } from "../repositories/user.repository";
 import { CvScreening, CreateCvScreeningDTO } from "../types/cv-screening.types";
 import fs from "fs";
 import path from "path";
-import pdfParse from "pdf-parse";
+import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 
 export class CvScreeningService {
@@ -101,7 +101,7 @@ export class CvScreeningService {
           cvText = "CV provided as an image.";
         } else if (fileExt === ".pdf") {
           const dataBuffer = fs.readFileSync(filePath);
-          const pdfData = await pdfParse(dataBuffer);
+          const pdfData = await new PDFParse({ data: dataBuffer }).getText();
           cvText = pdfData.text;
         } else if (fileExt === ".docx") {
           const result = await mammoth.extractRawText({ path: filePath });

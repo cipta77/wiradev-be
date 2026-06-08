@@ -59,6 +59,7 @@ export class AuthController {
         message: "Successfully registered and logged in",
         result: {
           user: result.user,
+          tokens: result.tokens,
         },
       });
     } catch (error: any) {
@@ -85,6 +86,7 @@ export class AuthController {
         message: "Successfully logged in",
         result: {
           user: result.user,
+          tokens: result.tokens,
         },
       });
     } catch (error: any) {
@@ -111,6 +113,7 @@ export class AuthController {
         message: "Successfully authenticated with Google",
         result: {
           user: result.user,
+          tokens: result.tokens,
         },
       });
     } catch (error: any) {
@@ -118,6 +121,13 @@ export class AuthController {
         message: error.message,
       });
     }
+  };
+
+  googleMobileLogin = async (req: Request, res: Response): Promise<void> => {
+    const frontendUrl = process.env.APP_URL || "http://localhost:3000";
+    const redirectUri = req.query.redirect_uri ? String(req.query.redirect_uri) : "";
+    const query = redirectUri ? `?redirect_uri=${encodeURIComponent(redirectUri)}` : "";
+    res.redirect(`${frontendUrl}/google-login${query}`);
   };
 
   refresh = async (req: Request, res: Response): Promise<void> => {
@@ -136,6 +146,9 @@ export class AuthController {
 
       res.status(200).json({
         message: "Tokens refreshed successfully",
+        result: {
+          tokens,
+        },
       });
     } catch (error: any) {
       res.status(401).json({
@@ -146,7 +159,10 @@ export class AuthController {
 
   me = async (req: Request, res: Response): Promise<void> => {
     try {
-      const token = (req as any).cookies?.access_token;
+      let token = (req as any).cookies?.access_token;
+      if (!token && req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
+        token = req.headers.authorization.split(" ")[1];
+      }
       if (!token) {
         res.status(401).json({
           message: "Unauthorized",

@@ -9,7 +9,7 @@ import {
 import fs from "fs";
 import path from "path";
 import AdmZip from "adm-zip";
-import pdfParse from "pdf-parse";
+import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 
 export class MiniProjectService {
@@ -88,7 +88,7 @@ export class MiniProjectService {
 
       if (ext === "pdf") {
         const dataBuffer = fs.readFileSync(filePath);
-        const data = await pdfParse(dataBuffer);
+        const data = await new PDFParse({ data: dataBuffer }).getText();
         return data.text || "No readable text found in PDF.";
       }
 
