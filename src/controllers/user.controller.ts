@@ -263,7 +263,7 @@ export class UserController {
   updateAccountSettings = async (req: Request, res: Response): Promise<void> => {
     try {
       const id = req.params.id as string;
-      const { first_name, last_name, email, university } = req.body;
+      const { first_name, last_name, email, university, field_of_study } = req.body;
 
       if (!first_name || !last_name || !email || !university) {
         res.status(400).json({
@@ -277,6 +277,7 @@ export class UserController {
         last_name,
         email,
         university,
+        field_of_study,
       });
 
       const { password_hash, ...safeUser } = user as any;

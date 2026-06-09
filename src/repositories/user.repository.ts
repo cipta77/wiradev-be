@@ -147,8 +147,8 @@ export class UserRepository {
 
   async updateAccountSettings(id: string, data: AccountSettingsDTO): Promise<void> {
     const sql = `
-      UPDATE users 
-      SET first_name = ?, last_name = ?, email = ?, university = ?
+      UPDATE users
+      SET first_name = ?, last_name = ?, email = ?, university = ?, field_of_study = COALESCE(?, field_of_study)
       WHERE id = ?
     `;
     await query(sql, [
@@ -156,6 +156,7 @@ export class UserRepository {
       data.last_name,
       data.email,
       data.university,
+      data.field_of_study ?? null,
       id,
     ]);
   }

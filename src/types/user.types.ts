@@ -76,6 +76,7 @@ export interface AccountSettingsDTO {
   last_name: string;
   email: string;
   university: string;
+  field_of_study?: string;
 }
 
 export interface UpdatePasswordDTO {
