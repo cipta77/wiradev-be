@@ -15,8 +15,13 @@ export interface User {
   transcript_url: string | null;
   onboarding_completed: boolean;
   is_email_verified: boolean;
+  github_username?: string | null;
+  github_languages?: any | null;
+  github_readiness_score?: number | null;
+  github_last_synced_at?: Date | null;
   created_at: Date;
   updated_at: Date;
+  providers?: string[];
 }
 
 export enum AchievementGoal {

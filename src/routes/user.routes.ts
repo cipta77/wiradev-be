@@ -14,6 +14,8 @@ router.patch("/:id/onboarding/documents", upload.fields([{ name: 'cv', maxCount:
 router.patch("/:id/onboarding/cv", upload.single("cv"), controller.updateCV);
 router.patch("/:id/onboarding/transcript", upload.single("transcript"), controller.updateTranscript);
 router.post("/:id/onboarding/complete", controller.completeOnboarding);
+router.post("/:id/github/link", controller.linkGitHub);
+router.post("/:id/github/sync", controller.syncGitHub);
 router.patch("/:id/profile", controller.updateAccountSettings);
 router.put("/:id/password", controller.updatePassword);
 

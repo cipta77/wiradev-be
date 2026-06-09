@@ -19,6 +19,10 @@ CREATE TABLE IF NOT EXISTS users (
     onboarding_completed BOOLEAN DEFAULT FALSE,
     is_email_verified BOOLEAN DEFAULT FALSE,
     readiness_score DECIMAL(5,2) DEFAULT 0.00,
+    github_username VARCHAR(255) NULL,
+    github_languages JSON NULL,
+    github_readiness_score DECIMAL(5,2) NULL,
+    github_last_synced_at TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );

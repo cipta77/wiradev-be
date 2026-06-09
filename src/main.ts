@@ -1,6 +1,6 @@
 import express, { Request, Response } from "express";
 import dotenv from "dotenv";
-import { pool } from "./db/connection";
+import { pool, ensureGithubColumnsExist } from "./db/connection";
 import userRoutes from "./routes/user.routes";
 import authRoutes from "./routes/auth.routes";
 import path from "path";
@@ -150,10 +150,13 @@ app.get("/docs", (req: Request, res: Response): void => {
   res.status(200).send(html);
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log("=========================================");
   console.log(`🚀 Express server running on: http://localhost:${PORT}`);
   console.log(`💚 Health Check endpoint:  http://localhost:${PORT}/health`);
   console.log(`📘 Interactive Swagger Docs: http://localhost:${PORT}/docs`);
   console.log("=========================================");
+  
+  // Run self-healing database migration
+  await ensureGithubColumnsExist();
 });

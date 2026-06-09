@@ -391,6 +391,14 @@ export async function getAssessmentAnalytics(
       return;
     }
 
+    // Fetch user from DB to get fresh github columns
+    const userDb = await query<RowDataPacket[]>(
+      "SELECT github_username, github_languages, github_readiness_score, github_last_synced_at, readiness_score, target_role FROM users WHERE id = ? LIMIT 1",
+      [user.id]
+    );
+    const userRow = userDb[0];
+    const hasGithubSync = userRow && userRow.github_username && userRow.github_readiness_score !== null;
+
     const latest = await query<RowDataPacket[]>(
       `SELECT id, completed_at, total_questions, correct_answers, score_percentage 
        FROM user_assessments 
@@ -399,7 +407,9 @@ export async function getAssessmentAnalytics(
       [user.id],
     );
 
-    if (latest.length === 0) {
+    const hasAssessment = latest.length > 0;
+
+    if (!hasAssessment && !hasGithubSync) {
       res.status(200).json({
         success: true,
         result: {
@@ -408,24 +418,6 @@ export async function getAssessmentAnalytics(
       });
       return;
     }
-
-    const assessment = latest[0];
-
-    const categoryResults = await query<RowDataPacket[]>(
-      `SELECT 
-         c.slug,
-         c.name,
-         c.icon,
-         c.color,
-         COUNT(uaa.id) as total,
-         SUM(CASE WHEN uaa.is_correct = 1 THEN 1 ELSE 0 END) as correct
-       FROM user_assessment_answers uaa
-       JOIN assessment_questions q ON q.id = uaa.question_id
-       JOIN assessment_categories c ON c.id = q.category_id
-       WHERE uaa.assessment_id = ?
-       GROUP BY c.id`,
-      [assessment.id],
-    );
 
     const REQUIRED_SCORES: Record<string, number> = {
       frontend: 75,
@@ -440,22 +432,127 @@ export async function getAssessmentAnalytics(
       database: 70,
     };
 
-    const categories = categoryResults.map((r) => {
-      const total = Number(r.total);
-      const correct = Number(r.correct || 0);
-      const score = total > 0 ? Math.round((correct / total) * 100) : 0;
-      const required = REQUIRED_SCORES[r.slug] || 60;
-      const gap = required - score;
+    // Fetch all categories
+    const allCategories = await query<RowDataPacket[]>(
+      `SELECT id, slug, name, icon, color FROM assessment_categories`
+    );
 
+    // Parse GitHub languages
+    const githubLangs = hasGithubSync && userRow.github_languages
+      ? (typeof userRow.github_languages === "string" ? JSON.parse(userRow.github_languages) : userRow.github_languages)
+      : {};
+
+    const sumLangs = (list: string[]) => {
+      let sum = 0;
+      for (const lang of list) {
+        sum += githubLangs[lang] || 0;
+      }
+      return sum;
+    };
+
+    // Calculate github category score fallback helper
+    const getGithubCategoryScore = (slug: string): number => {
+      if (!hasGithubSync) return 0;
+      let alignment = 0;
+      switch (slug) {
+        case "frontend":
+          alignment = sumLangs(["TypeScript", "JavaScript", "HTML", "CSS", "Vue", "Svelte", "SCSS", "Less"]);
+          break;
+        case "backend":
+          alignment = sumLangs(["Go", "Python", "Java", "JavaScript", "TypeScript", "C#", "PHP", "Ruby", "Rust", "C++"]);
+          break;
+        case "data_science":
+          alignment = sumLangs(["Python", "R", "Jupyter Notebook", "Julia", "Scala", "MATLAB"]);
+          break;
+        case "database":
+          alignment = sumLangs(["SQL"]) + 0.3 * sumLangs(["Go", "Python", "Java", "TypeScript", "C#"]);
+          break;
+        case "general_cs":
+          alignment = Object.keys(githubLangs).length > 0 ? 75 : 0;
+          break;
+        case "soft_skills":
+          alignment = Object.keys(githubLangs).length > 0 ? 80 : 0;
+          break;
+        case "devops":
+          alignment = sumLangs(["Shell", "Go", "Python", "Rust"]) > 0 ? 65 : 40;
+          break;
+        case "mobile":
+          alignment = sumLangs(["Swift", "Kotlin", "Dart", "Objective-C"]);
+          break;
+        case "security":
+          alignment = sumLangs(["Go", "Rust", "Python", "C++"]) > 0 ? 60 : 40;
+          break;
+        default:
+          alignment = 50;
+      }
+      return Math.min(100, Math.max(0, Math.round(alignment)));
+    };
+
+    // 1. Get assessment-based category scores if available
+    const assessmentCategoryScores: Record<string, { total: number; correct: number; score: number }> = {};
+    if (hasAssessment) {
+      const categoryResults = await query<RowDataPacket[]>(
+        `SELECT 
+           c.slug,
+           COUNT(uaa.id) as total,
+           SUM(CASE WHEN uaa.is_correct = 1 THEN 1 ELSE 0 END) as correct
+         FROM user_assessment_answers uaa
+         JOIN assessment_questions q ON q.id = uaa.question_id
+         JOIN assessment_categories c ON c.id = q.category_id
+         WHERE uaa.assessment_id = ?
+         GROUP BY c.id`,
+        [latest[0].id],
+      );
+
+      for (const r of categoryResults) {
+        const total = Number(r.total);
+        const correct = Number(r.correct || 0);
+        assessmentCategoryScores[r.slug] = {
+          total,
+          correct,
+          score: total > 0 ? Math.round((correct / total) * 100) : 0,
+        };
+      }
+    }
+
+    // 2. Build final category scores (blending or choosing)
+    const categories = allCategories.map((c) => {
+      const slug = c.slug;
+      const required = REQUIRED_SCORES[slug] || 60;
+      
+      let score = 0;
+      let correct = 0;
+      let total = 0;
+
+      const hasAssessScore = assessmentCategoryScores[slug] !== undefined;
+      const assessScore = hasAssessScore ? assessmentCategoryScores[slug].score : 0;
+      const githubScore = getGithubCategoryScore(slug);
+
+      if (hasAssessScore && hasGithubSync) {
+        // Blend
+        score = Math.round((assessScore + githubScore) / 2);
+        correct = assessmentCategoryScores[slug].correct;
+        total = assessmentCategoryScores[slug].total;
+      } else if (hasAssessScore) {
+        score = assessScore;
+        correct = assessmentCategoryScores[slug].correct;
+        total = assessmentCategoryScores[slug].total;
+      } else if (hasGithubSync) {
+        score = githubScore;
+        correct = 0;
+        total = 0;
+      }
+
+      const gap = required - score;
       let status: "strong" | "moderate" | "gap" = "moderate";
       if (score >= 70) status = "strong";
       else if (score < 50) status = "gap";
 
       return {
-        slug: r.slug,
-        name: r.name,
-        icon: r.icon,
-        color: r.color,
+        slug,
+        name: c.name,
+        icon: c.icon,
+        color: c.color,
         score,
         correct,
         total,
@@ -465,24 +562,28 @@ export async function getAssessmentAnalytics(
       };
     });
 
-    const strengths_count = categories.filter(
-      (c) => c.status === "strong",
-    ).length;
-    const critical_gaps_count = categories.filter(
-      (c) => c.status === "gap",
-    ).length;
-    const skills_mapped = categories.length;
+    const activeCategories = categories.filter(c => c.score > 0 || REQUIRED_SCORES[c.slug] !== undefined);
+
+    const strengths_count = activeCategories.filter((c) => c.status === "strong").length;
+    const critical_gaps_count = activeCategories.filter((c) => c.status === "gap").length;
+    const skills_mapped = activeCategories.length;
+
+    const completedAt = hasAssessment 
+      ? latest[0].completed_at 
+      : userRow.github_last_synced_at;
+
+    const overallScore = Number(userRow.readiness_score || 0);
 
     res.status(200).json({
       success: true,
       result: {
         has_assessment: true,
-        assessment_id: assessment.id,
-        completed_at: assessment.completed_at,
-        overall_score: Number(assessment.score_percentage),
-        total_questions: Number(assessment.total_questions),
-        correct_answers: Number(assessment.correct_answers),
-        categories,
+        assessment_id: hasAssessment ? latest[0].id : "github-sync",
+        completed_at: completedAt,
+        overall_score: overallScore,
+        total_questions: hasAssessment ? Number(latest[0].total_questions) : 0,
+        correct_answers: hasAssessment ? Number(latest[0].correct_answers) : 0,
+        categories: activeCategories,
         strengths_count,
         critical_gaps_count,
         skills_mapped,

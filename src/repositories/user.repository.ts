@@ -164,4 +164,30 @@ export class UserRepository {
     const sql = "UPDATE users SET password_hash = ? WHERE id = ?";
     await query(sql, [passwordHash, id]);
   }
+
+  async updateUsername(id: string, username: string): Promise<void> {
+    const sql = "UPDATE users SET username = ? WHERE id = ?";
+    await query(sql, [username, id]);
+  }
+
+  async updateGithubIntegration(
+    id: string,
+    githubUsername: string,
+    githubLanguages: any,
+    githubReadinessScore: number,
+    overallReadinessScore: number
+  ): Promise<void> {
+    const sql = `
+      UPDATE users 
+      SET github_username = ?, github_languages = ?, github_readiness_score = ?, readiness_score = ?, github_last_synced_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `;
+    await query(sql, [
+      githubUsername,
+      githubLanguages ? JSON.stringify(githubLanguages) : null,
+      githubReadinessScore,
+      overallReadinessScore,
+      id,
+    ]);
+  }
 }

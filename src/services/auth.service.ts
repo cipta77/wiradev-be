@@ -135,6 +135,141 @@ export class AuthService {
     return { tokens, user: safeUser };
   }
 
+  async githubLogin(code: string, isSignUp: boolean = false): Promise<AuthResponse> {
+    const clientId = process.env.GITHUB_CLIENT_ID;
+    const clientSecret = process.env.GITHUB_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+      throw new Error("GitHub OAuth is not configured on the server.");
+    }
+
+    // 1. Exchange the authorization code for an access token
+    const tokenResponse = await fetch("https://github.com/login/oauth/access_token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        code,
+      }),
+    });
+
+    const tokenData = await tokenResponse.json() as {
+      access_token?: string;
+      error?: string;
+      error_description?: string;
+    };
+
+    if (tokenData.error) {
+      throw new Error(`GitHub OAuth error: ${tokenData.error_description || tokenData.error}`);
+    }
+
+    const accessToken = tokenData.access_token;
+    if (!accessToken) {
+      throw new Error("Failed to retrieve access token from GitHub.");
+    }
+
+    const ghHeaders = {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: "application/vnd.github+json",
+      "User-Agent": "Wirapath-OAuth-Integration",
+    };
+
+    // 2. Fetch the GitHub user profile
+    const profileResponse = await fetch("https://api.github.com/user", { headers: ghHeaders });
+    if (!profileResponse.ok) {
+      throw new Error(`Failed to fetch user profile from GitHub. Status: ${profileResponse.status}`);
+    }
+
+    const profile = await profileResponse.json() as {
+      id: number;
+      login: string;
+      name?: string | null;
+      email?: string | null;
+      avatar_url?: string | null;
+    };
+
+    const githubId = String(profile.id);
+    const githubUsername = profile.login;
+    const avatarUrl = profile.avatar_url || undefined;
+
+    // GitHub may not expose the email on the profile (when set to private),
+    // so resolve the primary verified email via the dedicated endpoint.
+    let email = profile.email || undefined;
+    if (!email) {
+      try {
+        const emailResponse = await fetch("https://api.github.com/user/emails", { headers: ghHeaders });
+        if (emailResponse.ok) {
+          const emails = await emailResponse.json() as Array<{
+            email: string;
+            primary: boolean;
+            verified: boolean;
+          }>;
+          const primary = emails.find((e) => e.primary && e.verified)
+            || emails.find((e) => e.verified)
+            || emails[0];
+          email = primary?.email;
+        }
+      } catch {
+        // ignore — handled by the guard below
+      }
+    }
+
+    // Derive first/last name from the GitHub display name (single field).
+    let firstName: string | undefined;
+    let lastName: string | undefined;
+    if (profile.name) {
+      const parts = profile.name.trim().split(/\s+/);
+      firstName = parts.shift();
+      lastName = parts.length > 0 ? parts.join(" ") : undefined;
+    }
+
+    // 3. Resolve the account: linked provider -> email -> create (sign-up only)
+    let linkedProvider = await this.authProviderRepository.findByProvider("github", githubId);
+    let user: User | null = null;
+
+    if (linkedProvider) {
+      user = await this.userRepository.findById(linkedProvider.user_id);
+    } else {
+      if (email) {
+        user = await this.userRepository.findByEmail(email);
+      }
+
+      if (!user) {
+        if (!isSignUp) {
+          throw new Error("Account not found. Please register first.");
+        }
+        if (!email) {
+          throw new Error("Could not retrieve a verified email from GitHub. Please make your email public or add a verified email on GitHub.");
+        }
+        user = await this.userRepository.create({
+          email,
+          first_name: firstName,
+          last_name: lastName,
+          avatar_url: avatarUrl,
+        });
+      }
+
+      await this.authProviderRepository.create({
+        user_id: user.id,
+        provider: "github",
+        provider_user_id: githubId,
+      });
+    }
+
+    if (!user) {
+      throw new Error("Authentication failed");
+    }
+
+    const tokens = this.generateTokens(user.id);
+    const { password_hash, ...safeUser } = user;
+
+    return { tokens, user: safeUser };
+  }
+
   async getProfileByToken(token: string): Promise<User | null> {
     try {
       const payload = jwt.verify(token, this.accessSecret) as { sub: string };

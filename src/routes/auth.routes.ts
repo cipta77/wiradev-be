@@ -8,6 +8,8 @@ router.post("/register", controller.register);
 router.post("/login", controller.login);
 router.post("/google", controller.googleLogin);
 router.get("/google/mobile-login", controller.googleMobileLogin);
+router.post("/github", controller.githubLogin);
+router.get("/github/mobile-login", controller.githubMobileLogin);
 router.post("/refresh", controller.refresh);
 router.post("/logout", controller.logout);
 router.get("/me", controller.me);

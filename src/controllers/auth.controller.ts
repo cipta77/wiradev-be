@@ -130,6 +130,44 @@ export class AuthController {
     res.redirect(`${frontendUrl}/google-login${query}`);
   };
 
+  githubLogin = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { code, isSignUp } = req.body;
+      if (!code) {
+        res.status(400).json({
+          message: "code is required",
+        });
+        return;
+      }
+
+      const result = await this.authService.githubLogin(code, Boolean(isSignUp));
+      this.setAuthCookies(res, result.tokens);
+
+      res.status(200).json({
+        message: "Successfully authenticated with GitHub",
+        result: {
+          user: result.user,
+          tokens: result.tokens,
+        },
+      });
+    } catch (error: any) {
+      res.status(400).json({
+        message: error.message,
+      });
+    }
+  };
+
+  githubMobileLogin = async (req: Request, res: Response): Promise<void> => {
+    const frontendUrl = process.env.APP_URL || "http://localhost:3000";
+    const redirectUri = req.query.redirect_uri ? String(req.query.redirect_uri) : "";
+    const isSignUp = req.query.is_signup ? String(req.query.is_signup) : "";
+    const params = new URLSearchParams();
+    if (redirectUri) params.set("redirect_uri", redirectUri);
+    if (isSignUp) params.set("is_signup", isSignUp);
+    const query = params.toString() ? `?${params.toString()}` : "";
+    res.redirect(`${frontendUrl}/github-login${query}`);
+  };
+
   refresh = async (req: Request, res: Response): Promise<void> => {
     try {
       // Read from custom parsed cookies first, fallback to req.body
