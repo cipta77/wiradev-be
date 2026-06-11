@@ -336,6 +336,14 @@ export async function getDashboardSummary(req: Request, res: Response) {
       simulationsDone: 0,
       totalSimulations: 5,
     };
+    // Real "Continue Working" items derived from DB activity (empty for new accounts).
+    const activities: Array<{
+      type: "project" | "simulation" | "review";
+      title: string;
+      status: string;
+      progress: number | null;
+      refId: string | null;
+    }> = [];
 
     if (authUser) {
       const name =
@@ -395,6 +403,59 @@ export async function getDashboardSummary(req: Request, res: Response) {
       );
       growthProgress.simulationsDone = Number(simulationsCount[0].done || 0);
 
+      // Continue Working: in-progress/submitted mini projects
+      const activeProjects = await query<RowDataPacket[]>(
+        `SELECT s.mini_project_id AS refId, mp.title, s.status
+         FROM user_mini_project_submissions s
+         JOIN mini_projects mp ON mp.id = s.mini_project_id
+         WHERE s.user_id = ? AND s.status IN ('in_progress','submitted')
+         ORDER BY s.created_at DESC LIMIT 3`,
+        [authUser.id]
+      );
+      for (const p of activeProjects) {
+        activities.push({
+          type: "project",
+          title: p.title,
+          status: p.status === "submitted" ? "Submitted — awaiting review" : "In Progress",
+          progress: p.status === "submitted" ? 90 : 50,
+          refId: String(p.refId),
+        });
+      }
+
+      // Continue Working: ongoing simulations
+      const ongoingSims = await query<RowDataPacket[]>(
+        `SELECT id, type, company_name FROM simulations
+         WHERE user_id = ? AND status = 'ongoing'
+         ORDER BY created_at DESC LIMIT 2`,
+        [authUser.id]
+      );
+      for (const s of ongoingSims) {
+        activities.push({
+          type: "simulation",
+          title: s.company_name ? `Interview at ${s.company_name}` : "Career Simulation",
+          status: s.type === "salary" ? "Salary Simulation" : "Recruiter Simulation",
+          progress: null,
+          refId: String(s.id),
+        });
+      }
+
+      // Continue Working: latest reviewed project score
+      const lastReview = await query<RowDataPacket[]>(
+        `SELECT mini_project_id AS refId, overall_score FROM user_mini_project_submissions
+         WHERE user_id = ? AND status = 'reviewed' AND overall_score IS NOT NULL
+         ORDER BY reviewed_at DESC LIMIT 1`,
+        [authUser.id]
+      );
+      if (lastReview.length > 0) {
+        activities.push({
+          type: "review",
+          title: "AI Code Review",
+          status: `Last review: ${lastReview[0].overall_score}/100`,
+          progress: null,
+          refId: String(lastReview[0].refId),
+        });
+      }
+
     } else {
       user = {
         name: "Ubay Dillah",
@@ -421,6 +482,7 @@ export async function getDashboardSummary(req: Request, res: Response) {
         readinessScore: readinessScore,
         readinessTrend: "+8%",
         growthProgress,
+        activities,
       },
     });
   } catch (error) {
