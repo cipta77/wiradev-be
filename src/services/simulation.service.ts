@@ -80,90 +80,98 @@ You successfully negotiated an increase over the initial offer. You showed profe
   async start(
     userId: string,
     type: "recruiter" | "salary",
-    companyName?: string
+    companyName?: string,
+    roleOverride?: string,
+    scenario?: string
   ): Promise<{ simulation: Simulation; firstMessage: SimulationMessage }> {
     // 1. Fetch User details for AI customization
     const user = await this.userRepository.findById(userId);
-    const role = user?.target_role || "Software Engineer";
-    const name = `${user?.first_name || "Candidate"} ${user?.last_name || ""}`.trim();
+    const role = roleOverride || user?.target_role || "Software Engineer";
+    const firstName = (user?.first_name || "").trim();
+    const name = firstName ? `${firstName} ${user?.last_name || ""}`.trim() : "";
     const company = companyName || "this premium company";
 
     let initialText = "";
 
-    // 2. Dynamic prompt for initial question
-    const apiKey = process.env.OPENROUTER_API_KEY;
-    const primaryModel = process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free";
-    const modelChain = [
-      primaryModel,
-      "openai/gpt-oss-120b:free",
-      "z-ai/glm-4.5-air:free",
-      "nvidia/nemotron-3-super-120b-a12b:free",
-      "nvidia/nemotron-nano-9b-v2:free",
-      "poolside/laguna-m.1:free",
-      "google/gemma-4-31b-it:free",
-      "deepseek/deepseek-v4-flash:free",
-      "meta-llama/llama-3.3-70b-instruct:free",
-    ].filter((m, i, arr) => arr.indexOf(m) === i);
+    if (scenario) {
+      initialText = scenario;
+    } else {
+      // 2. Dynamic prompt for initial question
+      const apiKey = process.env.OPENROUTER_API_KEY;
+      const primaryModel = process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free";
+      const modelChain = [
+        primaryModel,
+        "google/gemini-2.5-flash",
+        "google/gemini-2.0-flash-lite:free",
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "deepseek/deepseek-chat",
+      ].filter((m, i, arr) => arr.indexOf(m) === i);
 
-    if (apiKey) {
-      try {
-        const systemPrompt = `You are a professional HR Specialist (HRD) and hiring coach. You are conducting an interactive roleplay.`;
-        
-        let userPrompt = "";
-        if (type === "recruiter") {
-          userPrompt = `
-You are the HRD interviewer at ${company} conducting a first-round interview for candidate ${name} applying for the ${role} position.
-Welcomes the candidate warmly, introduce yourself briefly as the HRD, set the context, and ask **ONLY** the FIRST standard introductory question (e.g. tell me about yourself and your interest in this role).
-Keep your message short, engaging, and professional (max 3 sentences).
-`;
-        } else {
-          userPrompt = `
-You are the HR Hiring Negotiator. You have sent an initial offer of Rp 8.000.000/month to ${name} for a Junior ${role} position.
-The standard market rate is Rp 9.500.000 to Rp 12.000.000.
-Create a warm initial greeting congratulating the candidate on the offer, present the initial Rp 8.000.000 figure, and ask them how they would like to respond to this offer.
-Keep your message brief and professional (max 3 sentences).
-`;
-        }
+      if (apiKey) {
+        try {
+          const nameInstruction = name
+            ? `The candidate's name is ${name}; address them by their first name.`
+            : `The candidate's name is unknown: address them naturally (e.g. "you"), and NEVER use placeholders like "[Candidate Name]" or "[Name]".`;
+          const systemPrompt = `You are a professional HR Specialist (HRD) and hiring coach. You are conducting an interactive roleplay. ${nameInstruction}`;
 
-        for (const model of modelChain) {
-          try {
-            const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-              method: "POST",
-              headers: {
-                "Authorization": `Bearer ${apiKey}`,
-                "Content-Type": "application/json",
-                "HTTP-Referer": "http://localhost:3000",
-                "X-Title": "Hi-Fi Readiness Simulation",
-              },
-              body: JSON.stringify({
-                model,
-                messages: [
-                  { role: "system", content: systemPrompt },
-                  { role: "user", content: userPrompt }
-                ]
-              }),
-              signal: AbortSignal.timeout(12000)
-            });
-
-            if (response.status === 429 || response.status === 404) {
-              console.warn(`[Simulation] Model ${model} returned ${response.status}, trying next...`);
-              continue;
-            }
-
-            if (response.ok) {
-              const data = await response.json();
-              const content = data.choices?.[0]?.message?.content;
-              if (content) {
-                initialText = content.trim();
-                break;
-              }
-            }
-          } catch (err) {
-            console.warn(`[Simulation] Model ${model} threw an error:`, err);
+          let userPrompt = "";
+          if (type === "recruiter") {
+            userPrompt = `
+  You are the HRD interviewer at ${company} conducting a first-round interview for a candidate applying for the ${role} position.
+  ${scenario ? `Specific scenario context for this session (stay anchored to it):\n${scenario}\n` : ""}
+  Welcome the candidate warmly, introduce yourself briefly as the HRD, set the context, and ask **ONLY** the FIRST standard introductory question (e.g. tell me about yourself and your interest in this role).${scenario ? " If the scenario context describes a concrete work task instead of an interview, open by presenting that task brief and ask how they would approach it." : ""}
+  Keep your message short, engaging, and professional (max 3 sentences).
+  `;
+          } else {
+            userPrompt = `
+  You are the HR Hiring Negotiator. You have sent an initial offer of Rp 8.000.000/month to the candidate for a Junior ${role} position.
+  ${scenario ? `Specific scenario context for this session (stay anchored to it):\n${scenario}\n` : ""}
+  The standard market rate is Rp 9.500.000 to Rp 12.000.000.
+  Create a warm initial greeting congratulating the candidate on the offer, present the initial Rp 8.000.000 figure, and ask them how they would like to respond to this offer.
+  Keep your message brief and professional (max 3 sentences).
+  `;
           }
+
+          for (const model of modelChain) {
+            try {
+              const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                  "Authorization": `Bearer ${apiKey}`,
+                  "Content-Type": "application/json",
+                  "HTTP-Referer": "http://localhost:3000",
+                  "X-Title": "Hi-Fi Readiness Simulation",
+                },
+                body: JSON.stringify({
+                  model,
+                  messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: userPrompt }
+                  ]
+                }),
+                signal: AbortSignal.timeout(12000)
+              });
+
+              if (response.status === 429 || response.status === 404) {
+                console.warn(`[Simulation] Model ${model} returned ${response.status}, trying next...`);
+                continue;
+              }
+
+              if (response.ok) {
+                const data = await response.json();
+                const content = data.choices?.[0]?.message?.content;
+                if (content) {
+                  initialText = content.trim();
+                  break;
+                }
+              }
+            } catch (err) {
+              console.warn(`[Simulation] Model ${model} threw an error:`, err);
+            }
+          }
+        } catch (err) {
+          console.error("Failed to generate custom starting question via OpenRouter:", err);
         }
-      } catch (err) {
-        console.error("Failed to generate custom starting question via OpenRouter:", err);
       }
     }
 
@@ -221,14 +229,10 @@ Keep your message brief and professional (max 3 sentences).
     const primaryModel2 = process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free";
     const modelChain2 = [
       primaryModel2,
-      "openai/gpt-oss-120b:free",
-      "z-ai/glm-4.5-air:free",
-      "nvidia/nemotron-3-super-120b-a12b:free",
-      "nvidia/nemotron-nano-9b-v2:free",
-      "poolside/laguna-m.1:free",
-      "google/gemma-4-31b-it:free",
-      "deepseek/deepseek-v4-flash:free",
+      "google/gemini-2.5-flash",
+      "google/gemini-2.0-flash-lite:free",
       "meta-llama/llama-3.3-70b-instruct:free",
+      "deepseek/deepseek-chat",
     ].filter((m, i, arr) => arr.indexOf(m) === i);
 
     // Scenario A: Keep chatting (up to 3 questions)
@@ -243,7 +247,9 @@ Keep your message brief and professional (max 3 sentences).
           const systemPrompt = `You are a professional HR Specialist (HRD) named Maya conducting a job interview roleplay. Stay in character at all times.
 Your role: Respond warmly to the candidate's last answer with a brief, genuine acknowledgement (1 sentence), then naturally ask your next interview question.
 Guidelines:
-- CRITICAL: Under NO circumstances should you answer questions unrelated to the interview (e.g., math, recipes, coding help, general knowledge). If the user goes off-topic, politely decline, remind them this is a professional interview, and steer the conversation back by asking your next question.
+- CRITICAL: Under NO circumstances should you answer questions unrelated to the interview (e.g., math, recipes, general knowledge). If the user goes off-topic, sends a greeting, a test message, or an apparent typo (e.g. "halo", "testing"), react naturally and lightheartedly first (e.g. "Haha, mungkin salah ketik? Tidak apa-apa!"), then warmly steer the conversation back by repeating or rephrasing your pending question.
+- Always respond in the SAME language the candidate writes in (Indonesian or English).
+- Address the candidate by their first name only if they have shared it; NEVER use placeholders like "[Candidate Name]".
 - Do NOT mention question numbers, say "next question", or use labels like "Final question".
 - Keep each response under 5 sentences total.
 - Ask only ONE question per turn.

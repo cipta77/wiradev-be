@@ -12,7 +12,7 @@ export class SimulationController {
         return;
       }
 
-      const { type, company_name } = req.body;
+      const { type, company_name, role, scenario } = req.body;
       if (!type || !["recruiter", "salary"].includes(type)) {
         res.status(400).json({ message: "Invalid or missing simulation type" });
         return;
@@ -21,7 +21,9 @@ export class SimulationController {
       const result = await this.simulationService.start(
         user.id,
         type,
-        company_name
+        company_name,
+        role,
+        scenario
       );
 
       res.status(201).json({
