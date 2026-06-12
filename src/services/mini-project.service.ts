@@ -140,7 +140,13 @@ export class MiniProjectService {
     }
 
     const targetRole = user.target_role || "Frontend Developer";
-    return await this.miniProjectRepository.findProjectsByUserRole(userId, targetRole);
+    const projects = await this.miniProjectRepository.findProjectsByUserRole(userId, targetRole);
+    if (projects.length > 0) {
+      return projects;
+    }
+    // Roles without a mapping (e.g. "Other / Exploring") fall back to the
+    // default Frontend Developer set so the Dev Hub is never empty.
+    return await this.miniProjectRepository.findProjectsByUserRole(userId, "Frontend Developer");
   }
 
   async getProjectDetail(userId: string, projectId: string): Promise<{ project: MiniProjectWithSubmission | null; submission: UserMiniProjectSubmission | null }> {
