@@ -2,6 +2,25 @@ import { Request, Response } from "express";
 import { ResultSetHeader, RowDataPacket } from "mysql2";
 import { query } from "../db/connection";
 
+// Count consecutive active days ending today (or yesterday, so the streak
+// isn't broken simply because the user hasn't acted yet today).
+function computeStreakFromDates(dateStrings: string[]): number {
+  if (dateStrings.length === 0) return 0;
+  const days = new Set(dateStrings);
+  const fmt = (dt: Date) => dt.toISOString().slice(0, 10);
+  const cursor = new Date();
+  if (!days.has(fmt(cursor))) {
+    cursor.setDate(cursor.getDate() - 1);
+    if (!days.has(fmt(cursor))) return 0;
+  }
+  let streak = 0;
+  while (days.has(fmt(cursor))) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+
 type GoalRow = RowDataPacket & {
   id: number;
   name: string;
@@ -328,6 +347,7 @@ export async function getDashboardSummary(req: Request, res: Response) {
 
     let user;
     let readinessScore = 0;
+    let streak = 0;
     let growthProgress = {
       skillsMapped: 0,
       totalSkills: 10,
@@ -402,6 +422,30 @@ export async function getDashboardSummary(req: Request, res: Response) {
         [authUser.id]
       );
       growthProgress.simulationsDone = Number(simulationsCount[0].done || 0);
+
+      // Real activity streak from timestamped activity across assessments,
+      // CV screenings, and simulations.
+      const activityDays = new Set<string>();
+      const pullDays = async (sql: string) => {
+        try {
+          const rows = await query<RowDataPacket[]>(sql, [authUser.id]);
+          for (const r of rows) {
+            if (r.d) activityDays.add(String(r.d));
+          }
+        } catch {
+          // Source table may be absent — ignore.
+        }
+      };
+      await pullDays(
+        `SELECT DISTINCT DATE_FORMAT(completed_at, '%Y-%m-%d') AS d FROM user_assessments WHERE user_id = ? AND completed_at IS NOT NULL`,
+      );
+      await pullDays(
+        `SELECT DISTINCT DATE_FORMAT(created_at, '%Y-%m-%d') AS d FROM cv_screenings WHERE user_id = ?`,
+      );
+      await pullDays(
+        `SELECT DISTINCT DATE_FORMAT(created_at, '%Y-%m-%d') AS d FROM simulations WHERE user_id = ?`,
+      );
+      streak = computeStreakFromDates(Array.from(activityDays));
 
       // Continue Working: in-progress/submitted mini projects
       const activeProjects = await query<RowDataPacket[]>(
@@ -478,7 +522,7 @@ export async function getDashboardSummary(req: Request, res: Response) {
         name: user.name,
         role: user.role,
         initials: initials,
-        streak: 3,
+        streak: streak,
         readinessScore: readinessScore,
         readinessTrend: "+8%",
         growthProgress,

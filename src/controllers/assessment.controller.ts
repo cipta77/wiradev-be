@@ -1,6 +1,9 @@
 import { Request, Response } from "express";
 import { ResultSetHeader, RowDataPacket } from "mysql2";
 import { query } from "../db/connection";
+import { UserRepository } from "../repositories/user.repository";
+
+const userRepository = new UserRepository();
 
 interface DbCategory extends RowDataPacket {
   id: string;
@@ -267,11 +270,9 @@ export async function submitAssessment(
       [totalCount, correctCount, scorePercentage, assessmentId],
     );
 
-    // Update user readiness score
-    await query<ResultSetHeader>(
-      `UPDATE users SET readiness_score = ? WHERE id = ?`,
-      [scorePercentage, user.id],
-    );
+    // Update the overall readiness score as a blend of all available signals
+    // (this assessment + any CV analysis + GitHub), not just this assessment.
+    await userRepository.recomputeReadinessScore(user.id);
 
     res.status(200).json({
       success: true,

@@ -269,7 +269,17 @@ IMPORTANT: Output ONLY the valid JSON object. Do not include any explanations, i
       recommendations: analysisResult.recommendations || []
     };
 
-    return await this.cvScreeningRepository.create(screeningData);
+    const created = await this.cvScreeningRepository.create(screeningData);
+
+    // Fold the CV analysis into the user's overall readiness score so it
+    // reflects more than just the skill assessment.
+    try {
+      await this.userRepository.recomputeReadinessScore(userId);
+    } catch (err) {
+      console.warn("[CvScreening] Failed to recompute readiness score:", err);
+    }
+
+    return created;
   }
 
   async getHistory(userId: string): Promise<CvScreening[]> {

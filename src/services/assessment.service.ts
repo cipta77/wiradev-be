@@ -1,4 +1,5 @@
 import { AssessmentRepository } from "../repositories/assessment.repository";
+import { UserRepository } from "../repositories/user.repository";
 
 interface QuestionAnswerPayload {
   question_id: string;
@@ -7,6 +8,7 @@ interface QuestionAnswerPayload {
 
 export class AssessmentService {
   private repository = new AssessmentRepository();
+  private userRepository = new UserRepository();
 
   async getAssessmentCategories(role: string) {
     const mappedCategories = await this.repository.getMappedCategoriesByRole(role);
@@ -71,7 +73,9 @@ export class AssessmentService {
 
     const scorePercentage = totalCount > 0 ? (correctCount / totalCount) * 100 : 0;
     await this.repository.completeAssessment(assessmentId, totalCount, correctCount, scorePercentage);
-    await this.repository.updateUserReadinessScore(userId, scorePercentage);
+    // Blend this assessment together with any CV analysis / GitHub signal into
+    // the overall readiness score (instead of overwriting it with this score).
+    await this.userRepository.recomputeReadinessScore(userId);
 
     return {
       assessment_id: assessmentId,

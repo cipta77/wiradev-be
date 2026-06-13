@@ -130,6 +130,32 @@ You successfully negotiated an increase over the initial offer. You showed profe
     }
   }
 
+  // Rotating fallback follow-ups used only when the AI model is unreachable.
+  // Keeps an open-ended interview/negotiation flowing for any number of turns.
+  private fallbackFollowUp(type: "recruiter" | "salary", turn: number): string {
+    const recruiter = [
+      "Thanks for sharing. Can you describe a challenging project or technical problem you solved, and how you approached it?",
+      "Interesting. How do you handle working under tight deadlines or shifting priorities when requirements change?",
+      "Good to know. Tell me about a time you collaborated with a team to overcome a disagreement — what was your role?",
+      "Let's go deeper: what are you most proud of in your work so far, and what impact did it have?",
+      "How do you keep your skills current, and what are you learning right now?",
+      "Where do you see yourself growing in this role over the next year or two?",
+      "Can you walk me through how you'd approach a task you've never done before?",
+      "What questions do you have for me about the team or the role?",
+    ];
+    const salary = [
+      "I appreciate your response, and we understand market rates. However, our initial budget is tight. Could we meet in the middle at Rp 9,000,000/month?",
+      "That's a fair point regarding value. If we confirm Rp 9,000,000/month, could we revisit your health or training benefits next quarter?",
+      "Help me understand the number you have in mind — what market data or value are you basing it on?",
+      "We could consider a performance review at six months. How would that change your view on the current figure?",
+      "Beyond base salary, are there other forms of compensation (signing bonus, remote flexibility, equity) that matter to you?",
+      "Let's try to close this. What's the figure that would make you comfortable accepting today?",
+    ];
+    const pool = type === "recruiter" ? recruiter : salary;
+    // turn starts at 1 for the first follow-up; rotate through the pool.
+    return pool[(Math.max(turn, 1) - 1) % pool.length];
+  }
+
   async start(
     userId: string,
     type: "recruiter" | "salary",
@@ -165,7 +191,7 @@ You successfully negotiated an increase over the initial offer. You showed profe
           const nameInstruction = name
             ? `The candidate's name is ${name}; address them by their first name.`
             : `The candidate's name is unknown: address them naturally (e.g. "you"), and NEVER use placeholders like "[Candidate Name]" or "[Name]".`;
-          const systemPrompt = `You are a professional HR Specialist (HRD) and hiring coach. You are conducting an interactive roleplay. ${nameInstruction}`;
+          const systemPrompt = `You are Maya, a professional HR Specialist (HRD) and hiring coach. You are conducting an interactive roleplay. When you introduce yourself, use the name "Maya" (e.g. "I'm Maya from the HR team"). NEVER refer to yourself with a placeholder such as "[Your Name]", "[HR Name]", or "[Name]". ${nameInstruction}`;
 
           let userPrompt = "";
           if (type === "recruiter") {
@@ -231,7 +257,7 @@ You successfully negotiated an increase over the initial offer. You showed profe
     // Fallback starting text
     if (!initialText) {
       if (type === "recruiter") {
-        initialText = `Welcome to your interview simulation at ${company} for the ${role} position. I am the HR Director today. Let's begin! Can you please tell me about yourself and why you're interested in joining our company?`;
+        initialText = `Welcome to your interview simulation at ${company} for the ${role} position. I'm Maya from the HR team, and I'll be your interviewer today. Let's begin! Can you please tell me about yourself and why you're interested in joining our company?`;
       } else {
         initialText = `Let's practice salary negotiation! You have received a formal offer of Rp 8,000,000/month for a Junior ${role} role. The market average for this role is Rp 9,500,000 to 12,000,000. How would you like to respond to this offer?`;
       }
@@ -304,13 +330,16 @@ You successfully negotiated an increase over the initial offer. You showed profe
       "deepseek/deepseek-chat",
     ].filter((m, i, arr) => arr.indexOf(m) === i);
 
-    // Scenario A: Keep chatting (up to 3 questions)
-    if (currentIndex < 3) {
+    // Open-ended conversation: the interview is no longer capped at a fixed
+    // number of questions. We always generate the next reply and keep chatting
+    // until the user explicitly ends the session (or the front-end 30-minute
+    // timer runs out and calls the /end endpoint).
+    {
       let nextQuestionText = "";
 
       if (apiKey) {
         try {
-          console.log(`[Simulation] Generating follow-up question (turn ${currentIndex + 1} of 3)...`);
+          console.log(`[Simulation] Generating follow-up question (turn ${currentIndex + 1})...`);
           // NOTE: Do NOT tell the AI the total question count or call it "final".
           // Let the AI respond naturally to the conversation history.
           const systemPrompt = `You are a professional HR Specialist (HRD) named Maya conducting a job interview roleplay. Stay in character at all times, and behave like a real, self-respecting interviewer would.
@@ -373,21 +402,10 @@ Guidelines:
         }
       }
 
-      // Fallback questions if AI call failed
+      // Fallback questions if AI call failed — rotate through a pool so the
+      // open-ended interview can continue naturally for any number of turns.
       if (!nextQuestionText) {
-        if (sim.type === "recruiter") {
-          if (currentIndex === 1) {
-            nextQuestionText = "Great points! Second question: Can you describe a challenging project or technical problem you solved, and how you approached it?";
-          } else {
-            nextQuestionText = "Interesting experience. Third question: How do you handle working under tight deadlines, or prioritizing tasks when requirements change?";
-          }
-        } else {
-          if (currentIndex === 1) {
-            nextQuestionText = "I appreciate your response, and we understand market rates. However, our initial budget is tight. Could we meet in the middle at Rp 9,000,000/month?";
-          } else {
-            nextQuestionText = "That's a fair point regarding value. If we confirm Rp 9,000,000/month, could we adjust your health or training benefits starting next quarter? What are your thoughts?";
-          }
-        }
+        nextQuestionText = this.fallbackFollowUp(sim.type, currentIndex);
       }
 
       // Update simulation details & save bot message
@@ -400,9 +418,37 @@ Guidelines:
 
       return { botMessage };
     }
+  }
 
-    // Scenario B: Completed! Generate Final Evaluation Report
-    else {
+  // Generate the final evaluation report and close the session. Triggered when
+  // the user clicks "End Interview" or the 30-minute timer reaches zero.
+  async endSimulation(
+    userId: string,
+    simulationId: string
+  ): Promise<{ result: SimulationResult }> {
+    const sim = await this.simulationRepository.findSimulationById(simulationId, userId);
+    if (!sim) {
+      throw new Error("Simulation session not found");
+    }
+
+    // Idempotent: if already completed, return the stored result.
+    if (sim.status === "completed") {
+      const existing = await this.simulationRepository.findResultBySimulationId(simulationId);
+      if (existing) return { result: existing };
+    }
+
+    const history = await this.simulationRepository.getSimulationMessages(simulationId);
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    const primaryModelEval = process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free";
+    const modelChain2 = [
+      primaryModelEval,
+      "google/gemini-2.5-flash",
+      "google/gemini-2.0-flash-lite:free",
+      "meta-llama/llama-3.3-70b-instruct:free",
+      "deepseek/deepseek-chat",
+    ].filter((m, i, arr) => arr.indexOf(m) === i);
+
+    {
       console.log(`Simulation complete! Evaluating session ${simulationId}...`);
       let evalResult: any;
 
@@ -493,7 +539,7 @@ Return ONLY valid JSON. No explanations, no markdown blocks outside JSON.
       }
 
       // Save result and close simulation
-      await this.simulationRepository.updateSimulationProgress(simulationId, userId, 3, "completed");
+      await this.simulationRepository.updateSimulationProgress(simulationId, userId, sim.current_question_index, "completed");
       const result = await this.simulationRepository.saveResult({
         simulation_id: simulationId,
         is_passed: evalResult.is_passed ?? false,

@@ -54,6 +54,7 @@ router.post("/mini-projects/:id/submit", requireAuth, uploadProjectFile.single("
 // AI Simulation routes
 router.post("/simulations/start", requireAuth, simulationController.startSimulation);
 router.post("/simulations/:id/message", requireAuth, simulationController.submitMessage);
+router.post("/simulations/:id/end", requireAuth, simulationController.endSimulation);
 router.get("/simulations/:id", requireAuth, simulationController.getDetails);
 
 // CV Screening routes

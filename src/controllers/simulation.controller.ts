@@ -72,6 +72,29 @@ export class SimulationController {
     }
   };
 
+  endSimulation = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const user = req.user;
+      if (!user) {
+        res.status(401).json({ message: "Unauthorized" });
+        return;
+      }
+
+      const id = req.params.id as string;
+      const result = await this.simulationService.endSimulation(user.id, id);
+
+      res.status(200).json({
+        message: "Simulation evaluated successfully",
+        result,
+      });
+    } catch (error: any) {
+      console.error("Error ending simulation:", error);
+      res.status(500).json({
+        message: error.message || "Failed to end simulation session",
+      });
+    }
+  };
+
   getDetails = async (req: Request, res: Response): Promise<void> => {
     try {
       const user = req.user;

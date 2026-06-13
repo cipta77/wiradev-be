@@ -191,4 +191,51 @@ export class UserRepository {
       id,
     ]);
   }
+
+  /**
+   * Recompute and persist the user's overall readiness score as a weighted
+   * blend of every available signal: the latest skill assessment, the latest
+   * CV analysis (CV screening), and the GitHub readiness score. Weights are
+   * renormalized over whichever signals are present, so a user with only a CV
+   * analysis still gets a meaningful score. Returns the composite score.
+   */
+  async recomputeReadinessScore(id: string): Promise<number> {
+    const assessmentRows = await query<any[]>(
+      `SELECT score_percentage FROM user_assessments
+       WHERE user_id = ? AND completed_at IS NOT NULL
+       ORDER BY completed_at DESC LIMIT 1`,
+      [id],
+    );
+    const cvRows = await query<any[]>(
+      `SELECT overall_score FROM cv_screenings
+       WHERE user_id = ?
+       ORDER BY created_at DESC LIMIT 1`,
+      [id],
+    );
+    const userRows = await query<any[]>(
+      `SELECT github_readiness_score FROM users WHERE id = ? LIMIT 1`,
+      [id],
+    );
+
+    const signals: { value: number; weight: number }[] = [];
+    if (assessmentRows.length > 0 && assessmentRows[0].score_percentage !== null) {
+      signals.push({ value: Number(assessmentRows[0].score_percentage), weight: 0.55 });
+    }
+    if (cvRows.length > 0 && cvRows[0].overall_score !== null) {
+      signals.push({ value: Number(cvRows[0].overall_score), weight: 0.25 });
+    }
+    if (userRows.length > 0 && userRows[0].github_readiness_score !== null) {
+      signals.push({ value: Number(userRows[0].github_readiness_score), weight: 0.2 });
+    }
+
+    if (signals.length === 0) return 0;
+
+    const totalWeight = signals.reduce((sum, s) => sum + s.weight, 0);
+    const composite = Math.round(
+      signals.reduce((sum, s) => sum + s.value * s.weight, 0) / totalWeight,
+    );
+
+    await query(`UPDATE users SET readiness_score = ? WHERE id = ?`, [composite, id]);
+    return composite;
+  }
 }

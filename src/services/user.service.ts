@@ -288,6 +288,10 @@ export class UserService {
       overallReadinessScore
     );
 
+    // Recompute the overall readiness as a blend of all available signals
+    // (assessment + CV analysis + GitHub) so the CV analysis is reflected too.
+    await this.userRepository.recomputeReadinessScore(userId);
+
     return this.getUserById(userId);
   }
 }

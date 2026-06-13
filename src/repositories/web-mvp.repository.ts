@@ -171,6 +171,39 @@ export class WebMvpRepository {
     return Math.round(Number(rows[0].readiness_score));
   }
 
+  // Distinct 'YYYY-MM-DD' days on which the user did something meaningful
+  // (took an assessment, screened a CV, or ran a simulation). Used to compute
+  // the activity streak. Each source is queried independently so a missing
+  // table never breaks the whole lookup.
+  async getActivityDates(userId: string): Promise<string[]> {
+    const dates = new Set<string>();
+    const pull = async (sql: string) => {
+      try {
+        const rows = await query<RowDataPacket[]>(sql, [userId]);
+        for (const r of rows) {
+          if (r.d) dates.add(String(r.d));
+        }
+      } catch {
+        // Source table may not exist in every deployment — ignore.
+      }
+    };
+
+    await pull(
+      `SELECT DISTINCT DATE_FORMAT(completed_at, '%Y-%m-%d') AS d
+       FROM user_assessments WHERE user_id = ? AND completed_at IS NOT NULL`,
+    );
+    await pull(
+      `SELECT DISTINCT DATE_FORMAT(created_at, '%Y-%m-%d') AS d
+       FROM cv_screenings WHERE user_id = ?`,
+    );
+    await pull(
+      `SELECT DISTINCT DATE_FORMAT(created_at, '%Y-%m-%d') AS d
+       FROM simulations WHERE user_id = ?`,
+    );
+
+    return Array.from(dates);
+  }
+
   async getLatestCompletedAssessmentId(userId: string): Promise<number | string | null> {
     const latest = await query<RowDataPacket[]>(
       `SELECT id FROM user_assessments 

@@ -92,9 +92,33 @@ export class WebMvpService {
     return { userId, email, name, goals };
   }
 
+  // Compute a consecutive-day activity streak from the set of active days.
+  // Counts back from today; if the user hasn't acted yet *today* but did
+  // yesterday, the streak still counts (it isn't broken until a full day is
+  // missed).
+  private computeStreak(dateStrings: string[]): number {
+    if (dateStrings.length === 0) return 0;
+    const days = new Set(dateStrings);
+    const fmt = (dt: Date) => dt.toISOString().slice(0, 10);
+
+    const cursor = new Date();
+    if (!days.has(fmt(cursor))) {
+      cursor.setDate(cursor.getDate() - 1);
+      if (!days.has(fmt(cursor))) return 0;
+    }
+
+    let streak = 0;
+    while (days.has(fmt(cursor))) {
+      streak++;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return streak;
+  }
+
   async getDashboardSummary(authUser?: any) {
     let user;
     let readinessScore = 62;
+    let streak = 0;
 
     if (authUser) {
       const name = [authUser.first_name, authUser.last_name].filter(Boolean).join(" ") || "Ubay Dillah";
@@ -105,6 +129,13 @@ export class WebMvpService {
 
       const score = await this.repository.getUserReadinessScore(authUser.id);
       if (score !== null) readinessScore = score;
+
+      try {
+        const activityDates = await this.repository.getActivityDates(authUser.id);
+        streak = this.computeStreak(activityDates);
+      } catch (err) {
+        console.warn("Failed to compute activity streak:", err);
+      }
     } else {
       user = { name: "Ubay Dillah", role: "Frontend Developer" };
     }
@@ -122,7 +153,7 @@ export class WebMvpService {
       name: user.name,
       role: user.role,
       initials,
-      streak: 3,
+      streak,
       readinessScore,
       readinessTrend: "+8%",
     };
