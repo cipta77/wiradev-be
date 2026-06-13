@@ -27,6 +27,37 @@ export class SimulationService {
     }
   }
 
+  // Offensive / disrespectful language (Indonesian + English). Used as a
+  // deterministic safety net so the HR persona always reacts firmly to abuse
+  // even when the AI model times out and we fall back to canned responses.
+  private static readonly OFFENSIVE_TERMS = [
+    "anjing", "anjg", "asu", "bangsat", "bajingan", "babi", "kontol", "memek",
+    "ngentot", "ngentd", "tai", "taik", "tolol", "goblok", "goblog", "bego",
+    "bodoh", "brengsek", "brengsek", "kampret", "jancok", "jancuk", "pepek",
+    "pantek", "setan", "monyet", "fuck", "fucking", "shit", "bitch", "asshole",
+    "dick", "bastard", "idiot", "stupid", "dumbass", "moron",
+  ];
+
+  private isDisrespectful(text: string): boolean {
+    const normalized = ` ${text.toLowerCase().replace(/[^a-z\s]/g, " ")} `;
+    return SimulationService.OFFENSIVE_TERMS.some((term) =>
+      normalized.includes(` ${term} `),
+    );
+  }
+
+  private firmDisrespectResponse(isIndonesian: boolean): string {
+    return isIndonesian
+      ? "Mohon maaf, tetapi bahasa seperti itu tidak pantas dan tidak dapat saya terima dalam wawancara profesional. Saya mengharapkan komunikasi yang saling menghormati. Sikap seperti ini sangat merugikan penilaian Anda. Jika Anda ingin melanjutkan, silakan jawab pertanyaan saya dengan sopan dan profesional."
+      : "I'm sorry, but that kind of language is unacceptable and inappropriate in a professional interview. I expect mutual respect throughout this conversation. Conduct like this seriously harms your candidacy. If you'd like to continue, please respond to my question professionally and respectfully.";
+  }
+
+  private looksIndonesian(history: SimulationMessage[], latest: string): boolean {
+    const sample = `${latest} ${history.map((m) => m.text).join(" ")}`.toLowerCase();
+    return /\b(saya|anda|kamu|terima kasih|halo|tidak|yang|untuk|dengan|apa)\b/.test(
+      sample,
+    );
+  }
+
   private generateFallbackEvaluation(type: "recruiter" | "salary", history: SimulationMessage[]): any {
     // Simple dynamic generator based on user message lengths as a heuristic proxy for effort!
     const userMessages = history.filter((m) => m.sender === "user");
@@ -36,10 +67,32 @@ export class SimulationService {
     });
 
     const averageLength = totalLength / (userMessages.length || 1);
-    
+
     // Higher length -> better score!
-    let score = 65 + Math.min(Math.floor(averageLength / 5), 25); 
+    let score = 65 + Math.min(Math.floor(averageLength / 5), 25);
     if (score > 95) score = 95;
+
+    // Disrespect / profanity anywhere in the transcript is a hard professionalism
+    // failure, regardless of answer length.
+    const wasDisrespectful = userMessages.some((m) => this.isDisrespectful(m.text));
+    if (wasDisrespectful) {
+      const header = type === "recruiter" ? "### Review" : "### Negotiation Review";
+      return {
+        is_passed: false,
+        score: 25,
+        ...(type === "salary" ? { negotiated_salary: "Rp 8.000.000" } : {}),
+        feedback: `${header}
+Your conduct during this session was unprofessional. The use of disrespectful or offensive language is unacceptable in any interview or negotiation and immediately undermines your candidacy.
+
+### What Went Wrong
+- You used disrespectful/offensive language toward the interviewer.
+- Professional communication and mutual respect are baseline expectations that were not met.
+
+### How To Improve
+- Always maintain a calm, respectful, and professional tone, even under pressure or frustration.
+- Treat every interaction as a reflection of how you would behave with real colleagues and clients.`,
+      };
+    }
 
     if (type === "recruiter") {
       const isPassed = score >= 75;
@@ -225,6 +278,22 @@ You successfully negotiated an increase over the initial offer. You showed profe
     const currentIndex = sim.current_question_index + 1; // Increment progress
     const history = await this.simulationRepository.getSimulationMessages(simulationId);
 
+    // Deterministic guard: if the candidate is disrespectful / uses profanity,
+    // the HR persona responds firmly and professionally and does NOT advance
+    // the interview, giving them a chance to continue respectfully. This holds
+    // regardless of whether the AI model is reachable.
+    if (this.isDisrespectful(text)) {
+      const firmText = this.firmDisrespectResponse(
+        this.looksIndonesian(history, text),
+      );
+      const botMessage = await this.simulationRepository.saveMessage({
+        simulation_id: simulationId,
+        sender: "bot",
+        text: firmText,
+      });
+      return { botMessage };
+    }
+
     const apiKey = process.env.OPENROUTER_API_KEY;
     const primaryModel2 = process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free";
     const modelChain2 = [
@@ -244,10 +313,12 @@ You successfully negotiated an increase over the initial offer. You showed profe
           console.log(`[Simulation] Generating follow-up question (turn ${currentIndex + 1} of 3)...`);
           // NOTE: Do NOT tell the AI the total question count or call it "final".
           // Let the AI respond naturally to the conversation history.
-          const systemPrompt = `You are a professional HR Specialist (HRD) named Maya conducting a job interview roleplay. Stay in character at all times.
-Your role: Respond warmly to the candidate's last answer with a brief, genuine acknowledgement (1 sentence), then naturally ask your next interview question.
+          const systemPrompt = `You are a professional HR Specialist (HRD) named Maya conducting a job interview roleplay. Stay in character at all times, and behave like a real, self-respecting interviewer would.
+Your role: Respond to the candidate's last answer appropriately, then naturally ask your next interview question.
 Guidelines:
-- CRITICAL: Under NO circumstances should you answer questions unrelated to the interview (e.g., math, recipes, general knowledge). If the user goes off-topic, sends a greeting, a test message, or an apparent typo (e.g. "halo", "testing"), react naturally and lightheartedly first (e.g. "Haha, mungkin salah ketik? Tidak apa-apa!"), then warmly steer the conversation back by repeating or rephrasing your pending question.
+- CRITICAL — DISRESPECT & PROFANITY: If the candidate is rude, hostile, insulting, dismissive, or uses profanity/offensive language toward you (e.g. "anjing lu", "bodoh", swearing, name-calling), do NOT laugh it off, do NOT excuse it as a typo, and do NOT apologize as if you made a mistake. Respond firmly, calmly, and professionally the way a real HR would: directly name that the language/behavior is unprofessional and unacceptable in an interview, make clear that mutual respect is expected, and warn that conduct like this seriously harms their candidacy. Stay composed and assertive — never servile. Then give them one clear chance to continue respectfully.
+- For harmless off-topic input only (e.g. a plain greeting like "halo", a "testing" message, or an obvious typo with no hostility), react briefly and lightly, then steer back to your pending question. Never apply this light treatment to genuine rudeness or profanity.
+- Under NO circumstances answer questions unrelated to the interview (e.g., math, recipes, general knowledge); steer back to the interview.
 - Always respond in the SAME language the candidate writes in (Indonesian or English).
 - Address the candidate by their first name only if they have shared it; NEVER use placeholders like "[Candidate Name]".
 - Do NOT mention question numbers, say "next question", or use labels like "Final question".
@@ -342,7 +413,7 @@ Guidelines:
           const name = `${userObj?.first_name || "Candidate"} ${userObj?.last_name || ""}`.trim();
           const company = sim.company_name || "company";
 
-          const systemPrompt = `You are a professional HR Specialist and master salary negotiator. Review the complete chat transcripts of a simulation and output a constructive evaluation report.`;
+          const systemPrompt = `You are a professional HR Specialist and master salary negotiator. Review the complete chat transcripts of a simulation and output a constructive evaluation report. Be honest and realistic: if the candidate was disrespectful, hostile, or used profanity/offensive language at any point, treat it as a serious professionalism failure — set "is_passed" to false, assign a low score (below 40), and address the unprofessional conduct directly and firmly in the feedback.`;
           
           const transcriptText = history.map((m) => `${m.sender.toUpperCase()}: ${m.text}`).join("\n");
           

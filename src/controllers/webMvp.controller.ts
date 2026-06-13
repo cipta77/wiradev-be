@@ -595,210 +595,104 @@ export async function getSkillGap(req: Request, res: Response) {
   }
 }
 
+// Top-10 in-demand skills / languages / tech stacks per target role.
+// Used by the readiness "Market Demand" view so the list reflects exactly the
+// role the user chose during onboarding.
+const MARKET_DEMAND_BY_ROLE: Record<string, string[]> = {
+  "Frontend Developer": [
+    "JavaScript / TypeScript",
+    "React / Next.js",
+    "HTML5 & CSS3",
+    "Responsive UI (Tailwind CSS)",
+    "State Management (Redux / Zustand)",
+    "REST & GraphQL APIs",
+    "Testing (Jest / React Testing Library)",
+    "Web Performance Optimization",
+    "Accessibility (WCAG)",
+    "Git & CI/CD",
+  ],
+  "Backend Developer": [
+    "Node.js / Go / Python",
+    "SQL Database Design",
+    "NoSQL (MongoDB / Redis)",
+    "REST & GraphQL API Design",
+    "Authentication & Security",
+    "System Design & Caching",
+    "Docker & Kubernetes",
+    "CI/CD Pipelines",
+    "Message Queues (Kafka / RabbitMQ)",
+    "Cloud (AWS / GCP)",
+  ],
+  "Data Scientist": [
+    "Python",
+    "SQL & Data Warehousing",
+    "Machine Learning",
+    "Statistics & Probability",
+    "Pandas / NumPy",
+    "Data Visualization",
+    "Deep Learning (TensorFlow / PyTorch)",
+    "Data Pipelines & ETL",
+    "Big Data (Spark)",
+    "MLOps & Model Deployment",
+  ],
+  "UI/UX Designer": [
+    "Figma & Prototyping",
+    "User Research & Personas",
+    "Wireframing",
+    "Design Systems",
+    "Interaction Design",
+    "Usability Testing",
+    "Visual & Typography",
+    "Accessibility (WCAG)",
+    "HTML / CSS Basics",
+    "Information Architecture",
+  ],
+  Freelance: [
+    "Full-Stack Web Development (React + Node.js)",
+    "Client Communication & Proposals",
+    "Git & Version Control",
+    "REST API Integration",
+    "Responsive UI (HTML / CSS / Tailwind)",
+    "Database Design (SQL / NoSQL)",
+    "Project & Time Management",
+    "Deployment & Payments (Vercel / Stripe)",
+    "SEO & Web Performance",
+    "Personal Branding & Portfolio",
+  ],
+};
+
+const MARKET_DEMAND_DEFAULT: string[] = [
+  "Full-Stack Web Development",
+  "Problem Solving & Algorithms",
+  "Git & Version Control",
+  "REST API Integration & Databases",
+  "Responsive UI (HTML / CSS)",
+  "Cloud & DevOps Basics",
+  "Testing & Debugging",
+  "Project Management & Agile",
+  "Communication & Collaboration",
+  "Continuous Learning",
+];
+
 export async function getMarketDemand(req: Request, res: Response) {
   try {
     const user = req.user;
     const role = user?.target_role || "Frontend Developer";
 
-    let demandData: Array<{
-      rank: number;
-      skill: string;
-      jobs_count: number;
-      trend_score: number;
-      bar_width: number;
-    }> = [];
+    const skills = MARKET_DEMAND_BY_ROLE[role] || MARKET_DEMAND_DEFAULT;
 
-    if (role === "Frontend Developer") {
-      demandData = [
-        {
-          rank: 1,
-          skill: "JavaScript / TypeScript",
-          jobs_count: 18500,
-          trend_score: 96,
-          bar_width: 96,
-        },
-        {
-          rank: 2,
-          skill: "React / Next.js Frameworks",
-          jobs_count: 15400,
-          trend_score: 92,
-          bar_width: 92,
-        },
-        {
-          rank: 3,
-          skill: "Responsive UI & CSS Engine",
-          jobs_count: 11000,
-          trend_score: 85,
-          bar_width: 85,
-        },
-        {
-          rank: 4,
-          skill: "State Management (Redux/Zustand)",
-          jobs_count: 8500,
-          trend_score: 78,
-          bar_width: 78,
-        },
-        {
-          rank: 5,
-          skill: "Accessibility Standards (WCAG)",
-          jobs_count: 6000,
-          trend_score: 72,
-          bar_width: 72,
-        },
-      ];
-    } else if (role === "Backend Developer") {
-      demandData = [
-        {
-          rank: 1,
-          skill: "Node.js / Go / Python Runtime",
-          jobs_count: 19000,
-          trend_score: 95,
-          bar_width: 95,
-        },
-        {
-          rank: 2,
-          skill: "SQL / NoSQL Database Design",
-          jobs_count: 16500,
-          trend_score: 90,
-          bar_width: 90,
-        },
-        {
-          rank: 3,
-          skill: "API Gateways & Security Protocols",
-          jobs_count: 14200,
-          trend_score: 88,
-          bar_width: 88,
-        },
-        {
-          rank: 4,
-          skill: "System Architecture & Caching",
-          jobs_count: 11500,
-          trend_score: 82,
-          bar_width: 82,
-        },
-        {
-          rank: 5,
-          skill: "Docker & CI/CD Cloud DevOps",
-          jobs_count: 9800,
-          trend_score: 80,
-          bar_width: 80,
-        },
-      ];
-    } else if (role === "Data Scientist") {
-      demandData = [
-        {
-          rank: 1,
-          skill: "Python & R Languages",
-          jobs_count: 21000,
-          trend_score: 97,
-          bar_width: 97,
-        },
-        {
-          rank: 2,
-          skill: "Machine Learning Algorithms",
-          jobs_count: 17200,
-          trend_score: 93,
-          bar_width: 93,
-        },
-        {
-          rank: 3,
-          skill: "SQL / Big Data Warehousing",
-          jobs_count: 15800,
-          trend_score: 91,
-          bar_width: 91,
-        },
-        {
-          rank: 4,
-          skill: "Data Pipelines & ETL",
-          jobs_count: 12500,
-          trend_score: 86,
-          bar_width: 86,
-        },
-        {
-          rank: 5,
-          skill: "Statistical Analysis & Math",
-          jobs_count: 11000,
-          trend_score: 80,
-          bar_width: 80,
-        },
-      ];
-    } else if (role === "UI/UX Designer") {
-      demandData = [
-        {
-          rank: 1,
-          skill: "Figma & Interactive Prototyping",
-          jobs_count: 14500,
-          trend_score: 92,
-          bar_width: 92,
-        },
-        {
-          rank: 2,
-          skill: "User Research & Personas",
-          jobs_count: 12000,
-          trend_score: 88,
-          bar_width: 88,
-        },
-        {
-          rank: 3,
-          skill: "Frontend Integration (CSS/HTML)",
-          jobs_count: 10500,
-          trend_score: 82,
-          bar_width: 82,
-        },
-        {
-          rank: 4,
-          skill: "Interaction Design System",
-          jobs_count: 9000,
-          trend_score: 80,
-          bar_width: 80,
-        },
-        {
-          rank: 5,
-          skill: "Usability Testing Protocols",
-          jobs_count: 8500,
-          trend_score: 78,
-          bar_width: 78,
-        },
-      ];
-    } else {
-      demandData = [
-        {
-          rank: 1,
-          skill: "Full Stack Web Development",
-          jobs_count: 22000,
-          trend_score: 96,
-          bar_width: 96,
-        },
-        {
-          rank: 2,
-          skill: "Project Management & Git",
-          jobs_count: 18000,
-          trend_score: 90,
-          bar_width: 90,
-        },
-        {
-          rank: 3,
-          skill: "API Integration & Databases",
-          jobs_count: 15000,
-          trend_score: 88,
-          bar_width: 88,
-        },
-        {
-          rank: 4,
-          skill: "Mobile Responsive Layouts",
-          jobs_count: 13000,
-          trend_score: 84,
-          bar_width: 84,
-        },
-        {
-          rank: 5,
-          skill: "UI Prototyping & Figma",
-          jobs_count: 11000,
-          trend_score: 80,
-          bar_width: 80,
-        },
-      ];
-    }
+    // Build a ranked top-10 list with descending demand metrics so the bars
+    // step down naturally. Job counts/trend are illustrative estimates.
+    const demandData = skills.slice(0, 10).map((skill, idx) => {
+      const trend = 97 - idx * 4; // 97, 93, 89, ...
+      return {
+        rank: idx + 1,
+        skill,
+        jobs_count: Math.round((22000 - idx * 1800) / 100) * 100,
+        trend_score: trend,
+        bar_width: trend,
+      };
+    });
 
     res.status(200).json({
       message: "Market demand retrieved successfully",
