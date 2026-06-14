@@ -365,7 +365,10 @@ PENTING: Hanya kembalikan objek JSON yang valid. Jangan sertakan teks penjelasan
       reviewed_at: new Date()
     };
 
-    return await this.miniProjectRepository.updateSubmissionReview(submission.id, reviewData);
+    const reviewed = await this.miniProjectRepository.updateSubmissionReview(submission.id, reviewData);
+    // Reviewed Dev Hub work feeds the overall readiness score.
+    await this.userRepository.recomputeReadinessScore(userId);
+    return reviewed;
   }
 
   async submitGitHubAndReview(userId: string, projectId: string, githubUrl: string): Promise<UserMiniProjectSubmission> {
@@ -611,6 +614,9 @@ PENTING: Hanya kembalikan objek JSON yang valid. Jangan sertakan teks penjelasan
       reviewed_at: new Date()
     };
 
-    return await this.miniProjectRepository.updateSubmissionReview(submission.id, reviewData);
+    const reviewed = await this.miniProjectRepository.updateSubmissionReview(submission.id, reviewData);
+    // Reviewed Dev Hub work feeds the overall readiness score.
+    await this.userRepository.recomputeReadinessScore(userId);
+    return reviewed;
   }
 }

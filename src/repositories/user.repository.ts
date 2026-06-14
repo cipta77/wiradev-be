@@ -194,16 +194,25 @@ export class UserRepository {
 
   /**
    * Recompute and persist the user's overall readiness score as a weighted
-   * blend of every available signal: the latest skill assessment, the latest
-   * CV analysis (CV screening), and the GitHub readiness score. Weights are
-   * renormalized over whichever signals are present, so a user with only a CV
-   * analysis still gets a meaningful score. Returns the composite score.
+   * blend of every available signal: the latest skill assessment, the work the
+   * user has shipped in the Development Hub (reviewed mini-project scores), the
+   * latest CV analysis (CV screening), and the GitHub readiness score. Weights
+   * are renormalized over whichever signals are present, so a user with only a
+   * CV analysis still gets a meaningful score. Returns the composite score.
    */
   async recomputeReadinessScore(id: string): Promise<number> {
     const assessmentRows = await query<any[]>(
       `SELECT score_percentage FROM user_assessments
        WHERE user_id = ? AND completed_at IS NOT NULL
        ORDER BY completed_at DESC LIMIT 1`,
+      [id],
+    );
+    // Development Hub: average AI-reviewed score across the user's reviewed
+    // mini-project submissions — reflects what they have actually built.
+    const projectRows = await query<any[]>(
+      `SELECT AVG(overall_score) AS avg_score
+       FROM user_mini_project_submissions
+       WHERE user_id = ? AND status = 'reviewed' AND overall_score IS NOT NULL`,
       [id],
     );
     const cvRows = await query<any[]>(
@@ -219,13 +228,16 @@ export class UserRepository {
 
     const signals: { value: number; weight: number }[] = [];
     if (assessmentRows.length > 0 && assessmentRows[0].score_percentage !== null) {
-      signals.push({ value: Number(assessmentRows[0].score_percentage), weight: 0.55 });
+      signals.push({ value: Number(assessmentRows[0].score_percentage), weight: 0.45 });
+    }
+    if (projectRows.length > 0 && projectRows[0].avg_score !== null) {
+      signals.push({ value: Number(projectRows[0].avg_score), weight: 0.2 });
     }
     if (cvRows.length > 0 && cvRows[0].overall_score !== null) {
-      signals.push({ value: Number(cvRows[0].overall_score), weight: 0.25 });
+      signals.push({ value: Number(cvRows[0].overall_score), weight: 0.2 });
     }
     if (userRows.length > 0 && userRows[0].github_readiness_score !== null) {
-      signals.push({ value: Number(userRows[0].github_readiness_score), weight: 0.2 });
+      signals.push({ value: Number(userRows[0].github_readiness_score), weight: 0.15 });
     }
 
     if (signals.length === 0) return 0;
