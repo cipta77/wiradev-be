@@ -6,6 +6,8 @@ const controller = new AuthController();
 
 router.post("/register", controller.register);
 router.post("/login", controller.login);
+router.post("/forgot-password", controller.forgotPassword);
+router.post("/reset-password", controller.resetPassword);
 router.post("/google", controller.googleLogin);
 router.get("/google/mobile-login", controller.googleMobileLogin);
 router.post("/github", controller.githubLogin);

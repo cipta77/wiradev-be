@@ -1,6 +1,7 @@
 import { UserRepository } from "../repositories/user.repository";
 import { AuthProviderRepository } from "../repositories/auth-provider.repository";
 import { UserService } from "./user.service";
+import { EmailService } from "./email.service";
 import { User } from "../types/user.types";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -19,14 +20,96 @@ export class AuthService {
   private userRepository = new UserRepository();
   private authProviderRepository = new AuthProviderRepository();
   private userService = new UserService();
-  
+  private emailService = new EmailService();
+
   private accessSecret = process.env.JWT_ACCESS_SECRET || "access_secret";
   private refreshSecret = process.env.JWT_REFRESH_SECRET || "refresh_secret";
+  private resetSecret = process.env.JWT_RESET_SECRET || "reset_secret";
+
+  /** Link lifetime in minutes. Kept in sync with the email template copy. */
+  private static readonly RESET_TOKEN_TTL_MINUTES = 30;
 
   private generateTokens(userId: string): AuthTokens {
     const accessToken = jwt.sign({ sub: userId }, this.accessSecret, { expiresIn: "15m" });
     const refreshToken = jwt.sign({ sub: userId }, this.refreshSecret, { expiresIn: "7d" });
     return { accessToken, refreshToken };
+  }
+
+  /**
+   * Per-user signing secret for reset tokens. By folding the current password
+   * hash into the secret, a reset token is implicitly single-use: once the
+   * password changes the hash changes, so any previously issued token (or a
+   * reused one) no longer verifies.
+   */
+  private resetSigningSecret(passwordHash: string): string {
+    return `${this.resetSecret}.${passwordHash}`;
+  }
+
+  /**
+   * Request a password reset. Looks up the account and, if it exists and has a
+   * password set, emails a time-limited reset link. Always resolves without
+   * revealing whether the address is registered (anti-enumeration); only
+   * unexpected failures (e.g. email transport) propagate.
+   */
+  async requestPasswordReset(email: string): Promise<void> {
+    const user = await this.userRepository.findByEmail(email.trim());
+
+    // Silently no-op for unknown accounts and OAuth-only accounts (no password
+    // to reset), so the caller can return an identical response in all cases.
+    if (!user || !user.password_hash) {
+      return;
+    }
+
+    const ttl = AuthService.RESET_TOKEN_TTL_MINUTES;
+    const token = jwt.sign(
+      { sub: user.id, purpose: "password_reset" },
+      this.resetSigningSecret(user.password_hash),
+      { expiresIn: `${ttl}m` }
+    );
+
+    const appUrl = process.env.APP_URL || "http://localhost:3000";
+    const resetUrl = `${appUrl}/reset-password?token=${encodeURIComponent(token)}`;
+
+    await this.emailService.sendPasswordResetEmail(user.email, {
+      userName: user.first_name || "there",
+      resetUrl,
+      expiryMinutes: ttl,
+    });
+  }
+
+  /**
+   * Complete a password reset: verify the token against the user's current
+   * password hash and, if valid, store the new password. Throws on an invalid,
+   * expired or already-used token.
+   */
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    if (!newPassword || newPassword.length < 8) {
+      throw new Error("Password must be at least 8 characters long.");
+    }
+
+    // Read the subject without verifying so we can fetch the user's current
+    // hash (which is part of the signing secret).
+    const decoded = jwt.decode(token) as { sub?: string } | null;
+    const userId = decoded?.sub;
+    if (!userId) {
+      throw new Error("Invalid or expired reset link.");
+    }
+
+    const user = await this.userRepository.findById(userId);
+    if (!user || !user.password_hash) {
+      throw new Error("Invalid or expired reset link.");
+    }
+
+    try {
+      jwt.verify(token, this.resetSigningSecret(user.password_hash), {
+        ignoreExpiration: false,
+      });
+    } catch {
+      throw new Error("Invalid or expired reset link.");
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.userRepository.updatePasswordHash(user.id, passwordHash);
   }
 
   async register(data: { email: string; password?: string }): Promise<AuthResponse> {

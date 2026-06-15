@@ -96,6 +96,48 @@ export class AuthController {
     }
   };
 
+  forgotPassword = async (req: Request, res: Response): Promise<void> => {
+    const { email } = req.body;
+    if (!email || typeof email !== "string") {
+      res.status(400).json({ message: "Email is required" });
+      return;
+    }
+
+    try {
+      await this.authService.requestPasswordReset(email);
+    } catch (error: any) {
+      // Genuine failure (e.g. email transport). Surface a 500 so the client can
+      // offer a retry — but never leak whether the address exists.
+      console.error("forgotPassword error:", error);
+      res.status(500).json({
+        message: "Could not send the reset email. Please try again.",
+      });
+      return;
+    }
+
+    // Identical response whether or not the account exists (anti-enumeration).
+    res.status(200).json({
+      message: "If an account exists for that email, a reset link has been sent.",
+    });
+  };
+
+  resetPassword = async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { token, password } = req.body;
+      if (!token || !password) {
+        res.status(400).json({ message: "Token and new password are required" });
+        return;
+      }
+
+      await this.authService.resetPassword(String(token), String(password));
+      res.status(200).json({
+        message: "Your password has been reset. You can now sign in.",
+      });
+    } catch (error: any) {
+      res.status(400).json({ message: error.message });
+    }
+  };
+
   googleLogin = async (req: Request, res: Response): Promise<void> => {
     try {
       const { idToken, isSignUp } = req.body;
