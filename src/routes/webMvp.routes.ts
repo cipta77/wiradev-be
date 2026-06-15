@@ -21,12 +21,14 @@ import { MiniProjectController } from "../controllers/mini-project.controller";
 import { uploadProjectFile } from "../middlewares/upload.middleware";
 import { SimulationController } from "../controllers/simulation.controller";
 import { CvScreeningController } from "../controllers/cv-screening.controller";
+import { TranscriptScreeningController } from "../controllers/transcript-screening.controller";
 import { JobdeskAnalyzerController } from "../controllers/jobdesk-analyzer.controller";
 
 const router = Router();
 const miniProjectController = new MiniProjectController();
 const simulationController = new SimulationController();
 const cvScreeningController = new CvScreeningController();
+const transcriptScreeningController = new TranscriptScreeningController();
 const jobdeskAnalyzerController = new JobdeskAnalyzerController();
 
 router.get("/test-db", testDb);
@@ -62,6 +64,11 @@ router.post("/cv-screening/upload", requireAuth, uploadProjectFile.single("cv"),
 router.get("/cv-screening/history", requireAuth, cvScreeningController.getHistory);
 router.get("/cv-screening/:id", requireAuth, cvScreeningController.getById);
 router.delete("/cv-screening/:id", requireAuth, cvScreeningController.deleteById);
+
+// Transcript Screening routes (upload happens via /users/:id/onboarding/...)
+router.get("/transcript-screening/history", requireAuth, transcriptScreeningController.getHistory);
+router.get("/transcript-screening/:id", requireAuth, transcriptScreeningController.getById);
+router.delete("/transcript-screening/:id", requireAuth, transcriptScreeningController.deleteById);
 
 // Jobdesk Analyzer route
 router.post("/jobdesk/analyze", requireAuth, jobdeskAnalyzerController.analyze);
