@@ -45,6 +45,12 @@ export class SimulationService {
     );
   }
 
+  private isEnglishSimulation(history: SimulationMessage[]): boolean {
+    if (history.length === 0) return false;
+    const firstText = history[0].text;
+    return firstText.includes("Software Engineer") || firstText.includes("Software Engineering") || firstText.includes("strictly in English");
+  }
+
   private firmDisrespectResponse(isIndonesian: boolean): string {
     return isIndonesian
       ? "Mohon maaf, tetapi bahasa seperti itu tidak pantas dan tidak dapat saya terima dalam wawancara profesional. Saya mengharapkan komunikasi yang saling menghormati. Sikap seperti ini sangat merugikan penilaian Anda. Jika Anda ingin melanjutkan, silakan jawab pertanyaan saya dengan sopan dan profesional."
@@ -132,7 +138,19 @@ You successfully negotiated an increase over the initial offer. You showed profe
 
   // Rotating fallback follow-ups used only when the AI model is unreachable.
   // Keeps an open-ended interview/negotiation flowing for any number of turns.
-  private fallbackFollowUp(type: "recruiter" | "salary", turn: number): string {
+  private fallbackFollowUp(type: "recruiter" | "salary", turn: number, companyName?: string | null): string {
+    if (type === "recruiter" && companyName?.toLowerCase() === "gojek") {
+      const gojekRecruiter = [
+        "Welcome to Gojek. I'm Maya from the Engineering recruitment team. Let's start with a brief introduction. Can you tell me about your background and why you are interested in the Software Engineering role at Gojek?",
+        "Gojek systems handle massive scale. Can you walk me through how you would design a highly concurrent ride-allocation queue to handle thousands of requests per second? What technologies would you use?",
+        "Interesting. When designing distributed systems at this scale, we often face network latency and partition issues. How would you handle consistency versus availability in a distributed driver assignment service?",
+        "Good explanation. Can you tell me about a time you had to deal with a technical disagreement in an engineering project, and how you resolved it?",
+        "How do you approach testing your code, especially when dealing with complex asynchronous flow and concurrent database access?",
+        "Where do you see yourself contributing most to the Gojek engineering culture, and what areas are you looking to grow in?",
+      ];
+      return gojekRecruiter[(Math.max(turn, 1) - 1) % gojekRecruiter.length];
+    }
+
     const recruiter = [
       "Thanks for sharing. Can you describe a challenging project or technical problem you solved, and how you approached it?",
       "Interesting. How do you handle working under tight deadlines or shifting priorities when requirements change?",
@@ -191,7 +209,14 @@ You successfully negotiated an increase over the initial offer. You showed profe
           const nameInstruction = name
             ? `The candidate's name is ${name}; address them by their first name.`
             : `The candidate's name is unknown: address them naturally (e.g. "you"), and NEVER use placeholders like "[Candidate Name]" or "[Name]".`;
-          const systemPrompt = `You are Maya, a professional HR Specialist (HRD) and hiring coach. You are conducting an interactive roleplay. When you introduce yourself, use the name "Maya" (e.g. "I'm Maya from the HR team"). NEVER refer to yourself with a placeholder such as "[Your Name]", "[HR Name]", or "[Name]". ${nameInstruction}`;
+          
+          const isEnglish = (roleOverride === "Software Engineer");
+          let systemPrompt = "";
+          if (isEnglish) {
+            systemPrompt = `You are Maya, a professional HR Specialist (HRD) and hiring coach. You are conducting an interactive roleplay. Conduct the entire interview strictly in English. Do not speak or respond in Indonesian or any other language under any circumstances. When you introduce yourself, use the name "Maya" (e.g. "I'm Maya from the HR team"). NEVER refer to yourself with a placeholder such as "[Your Name]", "[HR Name]", or "[Name]". ${nameInstruction}`;
+          } else {
+            systemPrompt = `You are Maya, a professional HR Specialist (HRD) and hiring coach. You are conducting an interactive roleplay. When you introduce yourself, use the name "Maya" (e.g. "I'm Maya from the HR team"). NEVER refer to yourself with a placeholder such as "[Your Name]", "[HR Name]", or "[Name]". ${nameInstruction} Always respond in the SAME language the candidate writes in (Indonesian or English).`;
+          }
 
           let userPrompt = "";
           if (type === "recruiter") {
@@ -257,7 +282,11 @@ You successfully negotiated an increase over the initial offer. You showed profe
     // Fallback starting text
     if (!initialText) {
       if (type === "recruiter") {
-        initialText = `Welcome to your interview simulation at ${company} for the ${role} position. I'm Maya from the HR team, and I'll be your interviewer today. Let's begin! Can you please tell me about yourself and why you're interested in joining our company?`;
+        if (companyName?.toLowerCase() === "gojek" && roleOverride === "Software Engineer") {
+          initialText = `Welcome to Gojek. I'm Maya from the Engineering recruitment team. Let's start with a brief introduction. Can you tell me about your background and why you are interested in the Software Engineering role at Gojek?`;
+        } else {
+          initialText = `Welcome to your interview simulation at ${company} for the ${role} position. I'm Maya from the HR team, and I'll be your interviewer today. Let's begin! Can you please tell me about yourself and why you're interested in joining our company?`;
+        }
       } else {
         initialText = `Let's practice salary negotiation! You have received a formal offer of Rp 8,000,000/month for a Junior ${role} role. The market average for this role is Rp 9,500,000 to 12,000,000. How would you like to respond to this offer?`;
       }
@@ -303,6 +332,7 @@ You successfully negotiated an increase over the initial offer. You showed profe
 
     const currentIndex = sim.current_question_index + 1; // Increment progress
     const history = await this.simulationRepository.getSimulationMessages(simulationId);
+    const isEnglish = this.isEnglishSimulation(history);
 
     // Deterministic guard: if the candidate is disrespectful / uses profanity,
     // the HR persona responds firmly and professionally and does NOT advance
@@ -310,7 +340,7 @@ You successfully negotiated an increase over the initial offer. You showed profe
     // regardless of whether the AI model is reachable.
     if (this.isDisrespectful(text)) {
       const firmText = this.firmDisrespectResponse(
-        this.looksIndonesian(history, text),
+        isEnglish ? false : this.looksIndonesian(history, text),
       );
       const botMessage = await this.simulationRepository.saveMessage({
         simulation_id: simulationId,
@@ -342,7 +372,22 @@ You successfully negotiated an increase over the initial offer. You showed profe
           console.log(`[Simulation] Generating follow-up question (turn ${currentIndex + 1})...`);
           // NOTE: Do NOT tell the AI the total question count or call it "final".
           // Let the AI respond naturally to the conversation history.
-          const systemPrompt = `You are a professional HR Specialist (HRD) named Maya conducting a job interview roleplay. Stay in character at all times, and behave like a real, self-respecting interviewer would.
+          let systemPrompt = "";
+          if (isEnglish) {
+            systemPrompt = `You are a professional HR Specialist (HRD) named Maya conducting a job interview roleplay. Stay in character at all times, and behave like a real, self-respecting interviewer would.
+Your role: Respond to the candidate's last answer appropriately, then naturally ask your next interview question.
+Guidelines:
+- Conduct the entire conversation strictly in English. Never speak or respond in Indonesian or any other language under any circumstances.
+- CRITICAL — DISRESPECT & PROFANITY: If the candidate is rude, hostile, insulting, dismissive, or uses profanity/offensive language toward you (e.g. "anjing lu", "bodoh", swearing, name-calling), do NOT laugh it off, do NOT excuse it as a typo, and do NOT apologize as if you made a mistake. Respond firmly, calmly, and professionally the way a real HR would: directly name that the language/behavior is unprofessional and unacceptable in an interview, make clear that mutual respect is expected, and warn that conduct like this seriously harms their candidacy. Stay composed and assertive — never servile. Then give them one clear chance to continue respectfully.
+- For harmless off-topic input only (e.g. a plain greeting like "hello", a "testing" message, or an obvious typo with no hostility), react briefly and lightly, then steer back to your pending question. Never apply this light treatment to genuine rudeness or profanity.
+- Under NO circumstances answer questions unrelated to the interview (e.g., math, recipes, general knowledge); steer back to the interview.
+- Address the candidate by their first name only if they have shared it; NEVER use placeholders like "[Candidate Name]".
+- Do NOT mention question numbers, say "next question", or use labels like "Final question".
+- Keep each response under 5 sentences total.
+- Ask only ONE question per turn.
+- Maintain a professional yet friendly tone throughout.`;
+          } else {
+            systemPrompt = `You are a professional HR Specialist (HRD) named Maya conducting a job interview roleplay. Stay in character at all times, and behave like a real, self-respecting interviewer would.
 Your role: Respond to the candidate's last answer appropriately, then naturally ask your next interview question.
 Guidelines:
 - CRITICAL — DISRESPECT & PROFANITY: If the candidate is rude, hostile, insulting, dismissive, or uses profanity/offensive language toward you (e.g. "anjing lu", "bodoh", swearing, name-calling), do NOT laugh it off, do NOT excuse it as a typo, and do NOT apologize as if you made a mistake. Respond firmly, calmly, and professionally the way a real HR would: directly name that the language/behavior is unprofessional and unacceptable in an interview, make clear that mutual respect is expected, and warn that conduct like this seriously harms their candidacy. Stay composed and assertive — never servile. Then give them one clear chance to continue respectfully.
@@ -354,6 +399,7 @@ Guidelines:
 - Keep each response under 5 sentences total.
 - Ask only ONE question per turn.
 - Maintain a professional yet friendly tone throughout.`;
+          }
 
           const messagesForAi = history.map((m) => ({
             role: m.sender === "bot" ? "assistant" as const : "user" as const,
@@ -405,7 +451,7 @@ Guidelines:
       // Fallback questions if AI call failed — rotate through a pool so the
       // open-ended interview can continue naturally for any number of turns.
       if (!nextQuestionText) {
-        nextQuestionText = this.fallbackFollowUp(sim.type, currentIndex);
+        nextQuestionText = this.fallbackFollowUp(sim.type, currentIndex, sim.company_name);
       }
 
       // Update simulation details & save bot message
@@ -438,6 +484,7 @@ Guidelines:
     }
 
     const history = await this.simulationRepository.getSimulationMessages(simulationId);
+    const isEnglish = this.isEnglishSimulation(history);
     const apiKey = process.env.OPENROUTER_API_KEY;
     const primaryModelEval = process.env.OPENROUTER_MODEL || "openai/gpt-oss-120b:free";
     const modelChain2 = [
@@ -455,11 +502,16 @@ Guidelines:
       if (apiKey) {
         try {
           const userObj = await this.userRepository.findById(userId);
-          const role = userObj?.target_role || "Software Engineer";
+          const role = isEnglish ? "Software Engineer" : (userObj?.target_role || "Software Engineer");
           const name = `${userObj?.first_name || "Candidate"} ${userObj?.last_name || ""}`.trim();
           const company = sim.company_name || "company";
 
-          const systemPrompt = `You are a professional HR Specialist and master salary negotiator. Review the complete chat transcripts of a simulation and output a constructive evaluation report. Be honest and realistic: if the candidate was disrespectful, hostile, or used profanity/offensive language at any point, treat it as a serious professionalism failure — set "is_passed" to false, assign a low score (below 40), and address the unprofessional conduct directly and firmly in the feedback.`;
+          let systemPrompt = "";
+          if (isEnglish) {
+            systemPrompt = `You are a professional HR Specialist and master salary negotiator. Review the complete chat transcripts of a simulation and output a constructive evaluation report. Be honest and realistic: if the candidate was disrespectful, hostile, or used profanity/offensive language at any point, treat it as a serious professionalism failure — set "is_passed" to false, assign a low score (below 40), and address the unprofessional conduct directly and firmly in the feedback. You must output the entire report (including the feedback field) strictly in English.`;
+          } else {
+            systemPrompt = `You are a professional HR Specialist and master salary negotiator. Review the complete chat transcripts of a simulation and output a constructive evaluation report. Be honest and realistic: if the candidate was disrespectful, hostile, or used profanity/offensive language at any point, treat it as a serious professionalism failure — set "is_passed" to false, assign a low score (below 40), and address the unprofessional conduct directly and firmly in the feedback.`;
+          }
           
           const transcriptText = history.map((m) => `${m.sender.toUpperCase()}: ${m.text}`).join("\n");
           
