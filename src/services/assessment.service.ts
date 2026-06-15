@@ -77,11 +77,37 @@ export class AssessmentService {
     // the overall readiness score (instead of overwriting it with this score).
     await this.userRepository.recomputeReadinessScore(userId);
 
+    // Per-question breakdown so the client can let the user review their
+    // answers (with the correct answer + explanation) after submitting.
+    const reviewRows = await this.repository.getAssessmentAnswers(assessmentId);
+    const results = reviewRows.map((r) => {
+      let opts = r.options;
+      if (typeof opts === "string") {
+        try {
+          opts = JSON.parse(opts);
+        } catch {
+          opts = null;
+        }
+      }
+      return {
+        question_id: r.question_id,
+        question_text: r.question_text,
+        question_type: r.question_type,
+        category_name: r.category_name,
+        options: opts || [],
+        user_answer: r.user_answer,
+        correct_answer: r.correct_answer,
+        is_correct: Boolean(r.is_correct),
+        explanation: r.explanation,
+      };
+    });
+
     return {
       assessment_id: assessmentId,
       total_questions: totalCount,
       correct_answers: correctCount,
       score_percentage: scorePercentage,
+      results,
     };
   }
 

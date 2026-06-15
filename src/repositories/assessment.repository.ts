@@ -101,9 +101,12 @@ export class AssessmentRepository {
 
   async getAssessmentAnswers(assessmentId: string): Promise<RowDataPacket[]> {
     return query<RowDataPacket[]>(
-      `SELECT uaa.question_id, uaa.user_answer, uaa.is_correct, aq.question_type, aq.correct_answer, aq.explanation
+      `SELECT uaa.question_id, uaa.user_answer, uaa.is_correct,
+              aq.question_type, aq.question_text, aq.options, aq.correct_answer, aq.explanation,
+              c.name AS category_name
        FROM user_assessment_answers uaa
        JOIN assessment_questions aq ON aq.id = uaa.question_id
+       LEFT JOIN assessment_categories c ON c.id = aq.category_id
        WHERE uaa.assessment_id = ?`,
       [assessmentId]
     );
