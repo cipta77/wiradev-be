@@ -221,6 +221,12 @@ export class UserRepository {
        ORDER BY created_at DESC LIMIT 1`,
       [id],
     );
+    const transcriptRows = await query<any[]>(
+      `SELECT overall_score FROM transcript_screenings
+       WHERE user_id = ?
+       ORDER BY created_at DESC LIMIT 1`,
+      [id],
+    );
     const userRows = await query<any[]>(
       `SELECT github_readiness_score FROM users WHERE id = ? LIMIT 1`,
       [id],
@@ -228,16 +234,19 @@ export class UserRepository {
 
     const signals: { value: number; weight: number }[] = [];
     if (assessmentRows.length > 0 && assessmentRows[0].score_percentage !== null) {
-      signals.push({ value: Number(assessmentRows[0].score_percentage), weight: 0.45 });
+      signals.push({ value: Number(assessmentRows[0].score_percentage), weight: 0.40 });
     }
     if (projectRows.length > 0 && projectRows[0].avg_score !== null) {
-      signals.push({ value: Number(projectRows[0].avg_score), weight: 0.2 });
+      signals.push({ value: Number(projectRows[0].avg_score), weight: 0.20 });
     }
     if (cvRows.length > 0 && cvRows[0].overall_score !== null) {
-      signals.push({ value: Number(cvRows[0].overall_score), weight: 0.2 });
+      signals.push({ value: Number(cvRows[0].overall_score), weight: 0.15 });
+    }
+    if (transcriptRows.length > 0 && transcriptRows[0].overall_score !== null) {
+      signals.push({ value: Number(transcriptRows[0].overall_score), weight: 0.15 });
     }
     if (userRows.length > 0 && userRows[0].github_readiness_score !== null) {
-      signals.push({ value: Number(userRows[0].github_readiness_score), weight: 0.15 });
+      signals.push({ value: Number(userRows[0].github_readiness_score), weight: 0.10 });
     }
 
     if (signals.length === 0) return 0;

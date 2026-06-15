@@ -115,6 +115,21 @@ CREATE TABLE IF NOT EXISTS cv_screenings (
         REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS transcript_screenings (
+    id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
+    user_id VARCHAR(36) NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    file_url TEXT NOT NULL,
+    overall_score INT NOT NULL DEFAULT 0,
+    strengths JSON,
+    weaknesses JSON,
+    ai_summary TEXT,
+    recommendations JSON,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_transcript_user FOREIGN KEY (user_id)
+        REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS simulations (
     id VARCHAR(36) PRIMARY KEY DEFAULT (UUID()),
     user_id VARCHAR(36) NOT NULL,

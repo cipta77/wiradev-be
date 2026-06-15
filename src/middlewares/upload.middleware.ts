@@ -29,7 +29,9 @@ export const upload = multer({
       "image/jpeg",
       "image/png",
     ];
-    if (allowedMimeTypes.includes(file.mimetype)) {
+    const allowedExtensions = [".pdf", ".doc", ".docx", ".jpg", ".jpeg", ".png"];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowedMimeTypes.includes(file.mimetype) || allowedExtensions.includes(ext)) {
       cb(null, true);
     } else {
       cb(new Error("Invalid file type. Only PDF, DOC, DOCX, JPG, and PNG are allowed."));

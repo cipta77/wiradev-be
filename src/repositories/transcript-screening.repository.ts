@@ -1,0 +1,75 @@
+import { query } from "../db/connection";
+import { TranscriptScreening, CreateTranscriptScreeningDTO } from "../types/transcript-screening.types";
+import crypto from "crypto";
+
+export class TranscriptScreeningRepository {
+  private parseJsonField(field: any): any {
+    if (!field) return null;
+    if (typeof field === "string") {
+      try {
+        return JSON.parse(field);
+      } catch (e) {
+        return [];
+      }
+    }
+    return field;
+  }
+
+  private mapRow(row: any): TranscriptScreening {
+    return {
+      ...row,
+      strengths: this.parseJsonField(row.strengths),
+      weaknesses: this.parseJsonField(row.weaknesses),
+      recommendations: this.parseJsonField(row.recommendations),
+    };
+  }
+
+  async create(data: CreateTranscriptScreeningDTO): Promise<TranscriptScreening> {
+    const id = crypto.randomUUID();
+    const sql = `
+      INSERT INTO transcript_screenings (
+        id, user_id, file_name, file_url, overall_score,
+        strengths, weaknesses, ai_summary, recommendations
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    await query(sql, [
+      id,
+      data.user_id,
+      data.file_name,
+      data.file_url,
+      data.overall_score,
+      data.strengths ? JSON.stringify(data.strengths) : null,
+      data.weaknesses ? JSON.stringify(data.weaknesses) : null,
+      data.ai_summary ?? null,
+      data.recommendations ? JSON.stringify(data.recommendations) : null,
+    ]);
+
+    const created = await this.findById(id, data.user_id);
+    if (!created) {
+      throw new Error("Failed to retrieve created transcript screening");
+    }
+    return created;
+  }
+
+  async findById(id: string, userId: string): Promise<TranscriptScreening | null> {
+    const sql = "SELECT * FROM transcript_screenings WHERE id = ? AND user_id = ?";
+    const rows = await query<any[]>(sql, [id, userId]);
+    if (rows.length === 0) {
+      return null;
+    }
+    return this.mapRow(rows[0]);
+  }
+
+  async findAllByUserId(userId: string): Promise<TranscriptScreening[]> {
+    const sql = "SELECT * FROM transcript_screenings WHERE user_id = ? ORDER BY created_at DESC";
+    const rows = await query<any[]>(sql, [userId]);
+    return rows.map((row) => this.mapRow(row));
+  }
+
+  async deleteById(id: string, userId: string): Promise<boolean> {
+    const sql = "DELETE FROM transcript_screenings WHERE id = ? AND user_id = ?";
+    const result = await query<any>(sql, [id, userId]);
+    return result.affectedRows > 0;
+  }
+}

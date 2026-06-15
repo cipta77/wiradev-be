@@ -12,4 +12,11 @@ pnpm-debug.log*
 .pnpm-debug.log*
 .DS_Store
 Thumbs.db
-node_modules/ dist/ .env uploads/
+
+# Uploaded user files (CVs, transcripts) — never commit user data
+uploads/
+
+# Local env variants and backups (may contain secrets)
+.env.*
+!.env.example
+*.bak

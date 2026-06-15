@@ -1,8 +1,10 @@
 import { Request, Response } from "express";
 import { UserService } from "../services/user.service";
+import { TranscriptScreeningService } from "../services/transcript-screening.service";
 
 export class UserController {
   private userService = new UserService();
+  private transcriptScreeningService = new TranscriptScreeningService();
 
   getProfile = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -54,7 +56,7 @@ export class UserController {
       const id = req.params.id as string;
       const { first_name, last_name, university, field_of_study, graduation_year } = req.body;
 
-      if (!first_name || !last_name || !university || !field_of_study || !graduation_year) {
+      if (!first_name || !last_name || !university || !field_of_study || graduation_year === undefined || graduation_year === null || graduation_year === "") {
         res.status(400).json({
           message: "First name, last name, university, field of study, and graduation year are required",
         });
@@ -66,7 +68,7 @@ export class UserController {
         last_name,
         university,
         field_of_study,
-        graduation_year: parseInt(graduation_year),
+        graduation_year: parseInt(graduation_year as string),
       });
 
       const { password_hash, ...safeUser } = user as any;
@@ -154,6 +156,16 @@ export class UserController {
       const user = await this.userService.updateDocuments(id, cvUrl, transcriptUrl);
       const { password_hash, ...safeUser } = user as any;
       
+      if (files && files['transcript'] && files['transcript'][0] && transcriptUrl) {
+        this.transcriptScreeningService.uploadAndAnalyze(
+          id,
+          files['transcript'][0].originalname,
+          transcriptUrl
+        ).catch(err => {
+          console.error(`[UserController.updateDocuments] Async transcript screening failed for user ${id}:`, err);
+        });
+      }
+
       res.status(200).json({
         message: "Documents uploaded successfully",
         result: safeUser,
@@ -211,6 +223,16 @@ export class UserController {
 
       const user = await this.userService.updateDocuments(id, null, transcriptUrl);
       const { password_hash, ...safeUser } = user as any;
+
+      if (transcriptUrl) {
+        this.transcriptScreeningService.uploadAndAnalyze(
+          id,
+          file.originalname,
+          transcriptUrl
+        ).catch(err => {
+          console.error(`[UserController.updateTranscript] Async transcript screening failed for user ${id}:`, err);
+        });
+      }
 
       res.status(200).json({
         message: "Transcript uploaded successfully",
