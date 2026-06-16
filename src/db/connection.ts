@@ -1,7 +1,20 @@
 import mysql from "mysql2/promise";
 import dotenv from "dotenv";
 
-dotenv.config();
+const envResult = dotenv.config({ path: "/home/wirakarsa/wirapath/Wirakarsa-BE-Web-Standalone/.env" });
+console.log("[Debug] dotenv config result:", {
+  error: envResult.error,
+  parsedKeys: envResult.parsed ? Object.keys(envResult.parsed) : null,
+});
+
+console.log("[Debug] DB connection parameters:", {
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
+  user: process.env.DB_USER,
+  hasPassword: !!process.env.DB_PASSWORD,
+  passwordLength: process.env.DB_PASSWORD ? process.env.DB_PASSWORD.length : 0,
+  database: process.env.DB_NAME,
+});
 
 export const pool = mysql.createPool({
   host: process.env.DB_HOST || "localhost",

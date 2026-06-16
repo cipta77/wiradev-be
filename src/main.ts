@@ -1,5 +1,7 @@
-import express, { Request, Response } from "express";
 import dotenv from "dotenv";
+dotenv.config({ path: "/home/wirakarsa/wirapath/Wirakarsa-BE-Web-Standalone/.env" });
+
+import express, { Request, Response } from "express";
 import { pool, ensureGithubColumnsExist } from "./db/connection";
 import userRoutes from "./routes/user.routes";
 import authRoutes from "./routes/auth.routes";
@@ -7,7 +9,6 @@ import path from "path";
 import fs from "fs";
 import webMvpRoutes from "./routes/webMvp.routes";
 
-dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -150,13 +151,54 @@ app.get("/docs", (req: Request, res: Response): void => {
   res.status(200).send(html);
 });
 
-app.listen(PORT, async () => {
-  console.log("=========================================");
-  console.log(`🚀 Express server running on: http://localhost:${PORT}`);
-  console.log(`💚 Health Check endpoint:  http://localhost:${PORT}/health`);
-  console.log(`📘 Interactive Swagger Docs: http://localhost:${PORT}/docs`);
-  console.log("=========================================");
-  
-  // Run self-healing database migration
-  await ensureGithubColumnsExist();
+app.listen(Number(PORT), "0.0.0.0", async () => {
+    console.log("=========================================");
+    console.log(`🚀 Express server running on: http://localhost:${PORT}`);
+    console.log(`💚 Health Check endpoint:  http://localhost:${PORT}/health`);
+    console.log(`📘 Interactive Swagger Docs: http://localhost:${PORT}/docs`);
+    console.log("=========================================");
+    
+    // Debug registered routes
+    try {
+        const routes: string[] = [];
+        (app as any)._router.stack.forEach((middleware: any) => {
+            if (middleware.route) {
+                routes.push(`${Object.keys(middleware.route.methods).join(',').toUpperCase()} ${middleware.route.path}`);
+            } else if (middleware.name === 'router') {
+                const regexpStr = middleware.regexp.toString();
+                middleware.handle.stack.forEach((handler: any) => {
+                    if (handler.route) {
+                        routes.push(`${Object.keys(handler.route.methods).join(',').toUpperCase()} Router(${regexpStr}) -> ${handler.route.path}`);
+                    }
+                });
+            }
+        });
+        console.log("[Debug] Registered Routes:\n" + routes.join("\n"));
+    } catch (e: any) {
+        console.error("[Debug] Failed to print routes:", e.message);
+    }
+    
+    // Run self-healing database migration
+    await ensureGithubColumnsExist();
+
+    // Perform local self-test fetch
+    setTimeout(async () => {
+        console.log("[Debug Self-Test] Starting self-test fetches...");
+        for (const url of ["http://127.0.0.1:5000/", "http://127.0.0.1:5000/health"]) {
+            try {
+                const res = await fetch(url);
+                const headersObj: any = {};
+                res.headers.forEach((val, key) => { headersObj[key] = val; });
+                const body = await res.text();
+                console.log(`[Debug Self-Test] URL: ${url}`, {
+                    status: res.status,
+                    statusText: res.statusText,
+                    headers: headersObj,
+                    body: body.substring(0, 200),
+                });
+            } catch (err: any) {
+                console.error(`[Debug Self-Test] Failed to fetch ${url}:`, err.message);
+            }
+        }
+    }, 2000);
 });
