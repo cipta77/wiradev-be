@@ -1,11 +1,7 @@
 import mysql from "mysql2/promise";
 import dotenv from "dotenv";
 
-const envResult = dotenv.config({ path: "/home/wirakarsa/wirapath/Wirakarsa-BE-Web-Standalone/.env" });
-console.log("[Debug] dotenv config result:", {
-  error: envResult.error,
-  parsedKeys: envResult.parsed ? Object.keys(envResult.parsed) : null,
-});
+dotenv.config();
 
 console.log("[Debug] DB connection parameters:", {
   host: process.env.DB_HOST,
