@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-dotenv.config({ path: "/home/wirakarsa/wirapath/Wirakarsa-BE-Web-Standalone/.env" });
+dotenv.config();
 
 import express, { Request, Response } from "express";
 import { pool, ensureGithubColumnsExist } from "./db/connection";
